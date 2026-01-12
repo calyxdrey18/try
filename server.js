@@ -16,9 +16,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(__dirname));
-app.get("/", (_, res) => res.sendFile(path.join(__dirname, "index.html")));
 
-/* ================= CONFIG ================= */
+app.get("/", (_, res) =>
+  res.sendFile(path.join(__dirname, "index.html"))
+);
+
+/* ===================== CONFIG ===================== */
 const BOT_IMAGE_URL =
   "https://img.sanishtech.com/u/d52d507c27a7919e9e19448a073ba4cb.jpg";
 
@@ -26,180 +29,200 @@ const CHANNEL_NAME = "Viral-Bot Mini Updates";
 const CHANNEL_LINK =
   "https://whatsapp.com/channel/0029VbCGIzTJkK7C0wtGy31s";
 
-/* ================= GLOBAL ================= */
-let sock;
+/* ===================== GLOBAL STATE ===================== */
+let sock = null;
 let pairingCode = null;
-let starting = false;
+let isStarting = false;
 
-/* ================= START WHATSAPP ================= */
+/* ===================== WHATSAPP CORE ===================== */
 async function startWhatsApp(phoneForPair = null) {
-  if (starting) return;
-  starting = true;
+  if (isStarting) return;
+  isStarting = true;
 
-  const { state, saveCreds } = await useMultiFileAuthState("./auth");
-  const { version } = await fetchLatestBaileysVersion();
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState("./auth");
+    const { version } = await fetchLatestBaileysVersion();
 
-  sock = makeWASocket({
-    version,
-    auth: state,
-    logger: pino({ level: "silent" }),
-    browser: Browsers.ubuntu("Chrome"),
-    printQRInTerminal: false
-  });
+    sock = makeWASocket({
+      version,
+      auth: state,
+      logger: pino({ level: "silent" }),
+      browser: Browsers.ubuntu("Chrome"),
+      printQRInTerminal: false
+    });
 
-  sock.ev.on("creds.update", saveCreds);
+    sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
-    if (connection === "open") {
-      console.log("✅ WhatsApp Connected");
-      pairingCode = null;
-      starting = false;
-    }
+    sock.ev.on("connection.update", (u) => {
+      const { connection, lastDisconnect } = u;
 
-    if (connection === "close") {
-      const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !==
-        DisconnectReason.loggedOut;
-      starting = false;
-      if (shouldReconnect) startWhatsApp();
-    }
-  });
+      if (connection === "open") {
+        console.log("✅ WhatsApp Connected");
+        pairingCode = null;
+        isStarting = false;
+      }
 
-  if (phoneForPair && !sock.authState.creds.registered) {
-    setTimeout(async () => {
-      pairingCode = await sock.requestPairingCode(phoneForPair);
-      console.log("🔐 Pair Code:", pairingCode);
-    }, 3000);
-  }
+      if (connection === "close") {
+        const shouldReconnect =
+          lastDisconnect?.error?.output?.statusCode !==
+          DisconnectReason.loggedOut;
 
-  /* ================= MESSAGE HANDLER ================= */
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const m = messages[0];
-    if (!m?.message) return;
+        console.log("❌ Disconnected. Reconnect:", shouldReconnect);
+        isStarting = false;
+        if (shouldReconnect) startWhatsApp();
+      }
+    });
 
-    const jid = m.key.remoteJid;
-    if (jid === "status@broadcast") return;
-
-    const isGroup = jid.endsWith("@g.us");
-    const sender = isGroup ? m.key.participant : jid;
-
-    const text =
-      m.message.conversation ||
-      m.message.extendedTextMessage?.text ||
-      "";
-
-    if (!text.startsWith(".")) return;
-    const command = text.slice(1).toLowerCase();
-
-    /* ========= BASIC ========= */
-
-    if (command === "ping") {
-      return sock.sendMessage(jid, { text: "🏓 *PONG!*" });
-    }
-
-    if (command === "alive") {
-      return sock.sendMessage(jid, {
-        image: { url: BOT_IMAGE_URL },
-        caption: `🟢 *BOT STATUS*
-━━━━━━━━━━━━━━
-✅ *Viral-Bot Mini is ONLINE*
-⚡ Fast & Stable`
-      });
-    }
-
-    /* ========= MENU (REAL BUTTON) ========= */
-
-    if (command === "menu") {
-      const media = await sock.prepareMessageMedia(
-        { image: { url: BOT_IMAGE_URL } },
-        { upload: sock.waUploadToServer }
-      );
-
-      return sock.sendMessage(jid, {
-        interactiveMessage: {
-          header: {
-            hasMediaAttachment: true,
-            imageMessage: media.imageMessage
-          },
-          body: {
-            text: `📢 *${CHANNEL_NAME}*
-━━━━━━━━━━━━━━
-
-🤖 *VIRAL-BOT MINI*
-
-✨ Available Commands:
-• .alive
-• .ping
-• .tagall
-• .mute
-• .unmute
-
-🔔 Get updates, fixes & new features
-by following our official channel.`
-          },
-          nativeFlowMessage: {
-            buttons: [
-              {
-                name: "cta_url",
-                buttonParamsJson: JSON.stringify({
-                  display_text: "📢 View Channel",
-                  url: CHANNEL_LINK
-                })
-              }
-            ]
-          }
+    // Pairing code request
+    if (phoneForPair && !sock.authState.creds.registered) {
+      setTimeout(async () => {
+        try {
+          pairingCode = await sock.requestPairingCode(phoneForPair);
+          console.log("🔐 Pairing Code:", pairingCode);
+        } catch {
+          pairingCode = "FAILED";
         }
-      });
+      }, 3000);
     }
 
-    /* ========= GROUP ========= */
+    /* ===================== MESSAGE HANDLER ===================== */
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+      const m = messages[0];
+      if (!m?.message) return;
 
-    if (command === "tagall") {
-      if (!isGroup)
-        return sock.sendMessage(jid, { text: "❌ Group only" });
+      const jid = m.key.remoteJid;
+      if (jid === "status@broadcast") return;
 
-      const meta = await sock.groupMetadata(jid);
-      const mentions = meta.participants.map(p => p.id);
+      const isGroup = jid.endsWith("@g.us");
+      const sender = isGroup
+        ? m.key.participant || jid
+        : jid;
 
-      return sock.sendMessage(jid, {
-        text:
-          "📣 *TAG ALL*\n━━━━━━━━━━━━━━\n" +
-          mentions.map(u => `@${u.split("@")[0]}`).join("\n"),
-        mentions
-      });
-    }
+      /* -------- Button Click -------- */
+      if (m.message.buttonsResponseMessage) {
+        const btn =
+          m.message.buttonsResponseMessage.selectedButtonId;
 
-    if (command === "mute" || command === "unmute") {
-      if (!isGroup)
-        return sock.sendMessage(jid, { text: "❌ Group only" });
+        if (btn === "open_channel") {
+          return sock.sendMessage(jid, {
+            text: `📢 *${CHANNEL_NAME}*\n\nFollow our WhatsApp Channel:\n${CHANNEL_LINK}`
+          });
+        }
+      }
 
-      const meta = await sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
+      /* -------- Extract Text -------- */
+      const type = Object.keys(m.message)[0];
+      const text =
+        type === "conversation"
+          ? m.message.conversation
+          : type === "extendedTextMessage"
+          ? m.message.extendedTextMessage.text
+          : "";
 
-      if (!admins.includes(sender))
-        return sock.sendMessage(jid, { text: "❌ Admins only" });
+      if (!text || !text.startsWith(".")) return;
 
-      await sock.groupSettingUpdate(
-        jid,
-        command === "mute" ? "announcement" : "not_announcement"
-      );
+      // Prevent reply loops
+      const isBotEcho =
+        m.key.fromMe &&
+        m.message.extendedTextMessage?.contextInfo?.stanzaId;
+      if (isBotEcho) return;
 
-      return sock.sendMessage(jid, {
-        text:
+      const command = text.slice(1).toLowerCase();
+
+      /* ===================== BASIC ===================== */
+
+      if (command === "alive") {
+        return sock.sendMessage(jid, {
+          image: { url: BOT_IMAGE_URL },
+          caption: "✅ *Viral-Bot Mini is Alive & Running*"
+        });
+      }
+
+      if (command === "ping") {
+        return sock.sendMessage(jid, { text: "🏓 Pong!" });
+      }
+
+      if (command === "menu") {
+        return sock.sendMessage(jid, {
+          image: { url: BOT_IMAGE_URL },
+          caption: `📢 *${CHANNEL_NAME}*
+────────────────────
+
+🤖 *Viral-Bot Mini*
+
+.alive  – bot status
+.ping   – ping test
+.tagall – tag everyone
+.mute   – close group (admin)
+.unmute – open group (admin)
+
+🔔 Follow our channel for updates`,
+          buttons: [
+            {
+              buttonId: "open_channel",
+              buttonText: { displayText: "📢 View Channel" },
+              type: 1
+            }
+          ],
+          headerType: 4
+        });
+      }
+
+      /* ===================== GROUP ===================== */
+
+      if (command === "tagall") {
+        if (!isGroup)
+          return sock.sendMessage(jid, { text: "❌ Group only" });
+
+        const meta = await sock.groupMetadata(jid);
+        const mentions = meta.participants.map(p => p.id);
+
+        const msg =
+          "*📣 Tag All*\n\n" +
+          mentions.map(u => `@${u.split("@")[0]}`).join("\n");
+
+        return sock.sendMessage(jid, { text: msg, mentions });
+      }
+
+      if (command === "mute" || command === "unmute") {
+        if (!isGroup)
+          return sock.sendMessage(jid, { text: "❌ Group only" });
+
+        const meta = await sock.groupMetadata(jid);
+        const admins = meta.participants
+          .filter(p => p.admin)
+          .map(p => p.id);
+
+        if (!admins.includes(sender))
+          return sock.sendMessage(jid, { text: "❌ Admins only" });
+
+        await sock.groupSettingUpdate(
+          jid,
           command === "mute"
-            ? "🔇 *Group Muted*"
-            : "🔊 *Group Unmuted*"
-      });
-    }
-  });
+            ? "announcement"
+            : "not_announcement"
+        );
+
+        return sock.sendMessage(jid, {
+          text:
+            command === "mute"
+              ? "🔇 Group muted"
+              : "🔊 Group unmuted"
+        });
+      }
+    });
+
+  } catch (e) {
+    console.error("CRITICAL:", e);
+    isStarting = false;
+  }
 }
 
-/* ================= PAIR API ================= */
+/* ===================== PAIR API ===================== */
 app.post("/pair", async (req, res) => {
-  const phone = String(req.body.phone || "").replace(/\D/g, "");
-  if (!phone) return res.json({ success: false });
+  let phone = String(req.body.phone || "").replace(/\D/g, "");
+  if (!phone)
+    return res.json({ success: false, error: "Invalid phone" });
 
   pairingCode = null;
   await startWhatsApp(phone);
@@ -209,17 +232,17 @@ app.post("/pair", async (req, res) => {
     t++;
     if (pairingCode) {
       clearInterval(wait);
-      res.json({ success: true, code: pairingCode });
+      return res.json({ success: true, code: pairingCode });
     }
     if (t > 25) {
       clearInterval(wait);
-      res.json({ success: false, error: "Timeout" });
+      return res.json({ success: false, error: "Timeout" });
     }
   }, 1000);
 });
 
-/* ================= START ================= */
+/* ===================== START ===================== */
 app.listen(PORT, () => {
-  console.log("🚀 Viral-Bot Mini running on", PORT);
+  console.log("🚀 Viral-Bot Mini running on port", PORT);
   if (fs.existsSync("./auth/creds.json")) startWhatsApp();
 });
