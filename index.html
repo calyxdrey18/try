@@ -261,60 +261,107 @@
     </div>
   </div>
 
-  <script>
-    const pairBtn = document.getElementById('pairBtn');
-    const loader = document.getElementById('loader');
-    const codeValue = document.getElementById('codeValue');
-    const copyBtn = document.getElementById('copyBtn');
-    const errorPopup = document.getElementById('errorPopup');
-    const phoneInput = document.getElementById('phone');
+<script>
+  const pairBtn = document.getElementById('pairBtn');
+  const loader = document.getElementById('loader');
+  const codeValue = document.getElementById('codeValue');
+  const copyBtn = document.getElementById('copyBtn');
+  const errorPopup = document.getElementById('errorPopup');
+  const phoneInput = document.getElementById('phone');
 
-    function showError(msg) {
-      errorPopup.textContent = msg;
-      errorPopup.style.display = 'block';
-      setTimeout(() => { errorPopup.style.display = 'none'; }, 5000);
+  function showError(msg) {
+    errorPopup.innerHTML = msg.replace(/\n/g, '<br>');
+    errorPopup.style.display = 'block';
+    setTimeout(() => { errorPopup.style.display = 'none'; }, 8000);
+  }
+
+  function showSuccess(msg) {
+    errorPopup.innerHTML = `<span style="color:#10b981">✅ ${msg}</span>`;
+    errorPopup.style.display = 'block';
+    setTimeout(() => { errorPopup.style.display = 'none'; }, 5000);
+  }
+
+  pairBtn.addEventListener('click', async () => {
+    const phone = phoneInput.value.trim();
+    if (!phone) return showError('Phone number is required');
+    
+    // Basic phone validation
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      return showError('Please enter a valid phone number (at least 10 digits)');
     }
 
-    pairBtn.addEventListener('click', async () => {
-      const phone = phoneInput.value.trim();
-      if (!phone) return showError('Phone number is required');
+    pairBtn.disabled = true;
+    pairBtn.textContent = 'GENERATING...';
+    loader.style.display = 'flex';
+    codeValue.textContent = '---- ----';
+    errorPopup.style.display = 'none';
 
-      pairBtn.disabled = true;
-      loader.style.display = 'flex';
-      codeValue.textContent = '---- ----';
+    try {
+      const res = await fetch('/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanPhone })
+      });
+      
+      const data = await res.json();
+      console.log('Pair response:', data);
 
-      try {
-        const res = await fetch('/pair', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          codeValue.textContent = data.code;
-          copyBtn.disabled = false;
-        } else {
-          showError(data.error || 'Request failed');
-        }
-      } catch (e) {
-        showError('System offline. Check connection.');
-      } finally {
-        pairBtn.disabled = false;
-        loader.style.display = 'none';
+      if (data.success) {
+        codeValue.textContent = data.code;
+        copyBtn.disabled = false;
+        showSuccess(`Pairing code generated for ${data.phone}`);
+      } else {
+        showError(data.error || 'Request failed. Please try again.');
       }
-    });
+    } catch (e) {
+      console.error('Fetch error:', e);
+      showError('Connection error. Please check:<br>1. Server is running<br>2. Internet connection<br>3. Try again');
+    } finally {
+      pairBtn.disabled = false;
+      pairBtn.textContent = 'GENERATE ACCESS CODE';
+      loader.style.display = 'none';
+    }
+  });
 
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(codeValue.textContent);
-      const oldText = copyBtn.textContent;
-      copyBtn.textContent = 'COPIED!';
-      copyBtn.style.color = '#10b981';
-      setTimeout(() => { 
-        copyBtn.textContent = oldText; 
-        copyBtn.style.color = '';
-      }, 2000);
-    });
-  </script>
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(codeValue.textContent.replace(/\s/g, ''));
+    const oldText = copyBtn.textContent;
+    copyBtn.textContent = 'COPIED!';
+    copyBtn.style.color = '#10b981';
+    copyBtn.style.borderColor = '#10b981';
+    setTimeout(() => { 
+      copyBtn.textContent = oldText; 
+      copyBtn.style.color = '';
+      copyBtn.style.borderColor = '';
+    }, 2000);
+  });
+
+  // Add phone format helper
+  phoneInput.addEventListener('input', (e) => {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 0) {
+      if (value.startsWith('0')) {
+        value = value.substring(0, 11);
+      } else if (value.startsWith('234')) {
+        value = value.substring(0, 13);
+      } else {
+        value = value.substring(0, 10);
+      }
+    }
+    e.target.value = value;
+  });
+
+  // Check server status on load
+  window.addEventListener('load', async () => {
+    try {
+      const res = await fetch('/status');
+      const data = await res.json();
+      console.log('Server status:', data);
+    } catch (e) {
+      console.log('Server status check failed - normal if just starting');
+    }
+  });
+</script>
 </body>
 </html>
