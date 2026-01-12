@@ -2,6 +2,20 @@
 const BOT_IMAGE_URL = "https://img.sanishtech.com/u/d52d507c27a7919e9e19448a073ba4cb.jpg";
 const CHANNEL_NAME = "Viral-Bot Mini Updates";
 const CHANNEL_LINK = "https://whatsapp.com/channel/0029VbCGIzTJkK7C0wtGy31s";
+const NEWSLETTER_JID = "120363405637529316@newsletter";
+
+// Newsletter forwarding context
+function getNewsletterContext() {
+  return {
+    forwardingScore: 1,
+    isForwarded: true,
+    forwardedNewsletterMessageInfo: {
+      newsletterJid: NEWSLETTER_JID,
+      newsletterName: CHANNEL_NAME,
+      serverMessageId: -1
+    }
+  };
+}
 
 function createStyledMessage(title, content) {
   const border = "─".repeat(28);
@@ -52,7 +66,7 @@ function getBotInfo() {
 ────────────────────
 Version: 2.0.0
 Status: ONLINE
-Developer: Viral-Bot Team
+Developer: Calyx Drey 
 Platform: Node.js + Baileys
 Uptime: 24/7 Active
 
@@ -63,14 +77,14 @@ Uptime: 24/7 Active
 • Admin Controls
 • User Management
 
-📞 Support: @your_support`);
+📞 Support: @+263786624966`);
 }
 
 function getAbout() {
   return createStyledMessage("ABOUT DEVELOPER",
     `👨‍💻 *Developer Information*
 ────────────────────
-Name: Viral-Bot Team
+Name: Calyx Drey
 Experience: 3+ Years
 Specialization: WhatsApp Bots
 Languages: JavaScript, Python
@@ -95,6 +109,8 @@ module.exports = {
   BOT_IMAGE_URL,
   CHANNEL_NAME,
   CHANNEL_LINK,
+  NEWSLETTER_JID,
+  getNewsletterContext,
   createStyledMessage,
   getCommandList,
   getBotInfo,
