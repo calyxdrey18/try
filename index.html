@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Viral-Bot Mini</title>
+  <style>
+    body {
+      background: #020617;
+      color: white;
+      font-family: Arial;
+      text-align: center;
+      padding: 50px;
+    }
+    input, button {
+      padding: 12px;
+      margin: 10px;
+      border-radius: 6px;
+      border: none;
+    }
+    button {
+      background: #6366f1;
+      color: white;
+      cursor: pointer;
+    }
+    .code {
+      margin-top: 20px;
+      font-size: 22px;
+      color: #22c55e;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🤖 Viral-Bot Mini</h1>
+<p>Enter WhatsApp number (with country code)</p>
+
+<input id="num" placeholder="2637xxxxxxx">
+<br>
+<button onclick="pair()">Get Pairing Code</button>
+
+<div class="code" id="res"></div>
+
+<script>
+async function pair() {
+  const number = document.getElementById("num").value
+  document.getElementById("res").innerText = "⏳ Generating..."
+
+  const r = await fetch("/pair", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ number })
+  })
+
+  const d = await r.json()
+  document.getElementById("res").innerText =
+    d.code ? `PAIR CODE: ${d.code}` : d.error
+}
+</script>
+
+</body>
+</html>
