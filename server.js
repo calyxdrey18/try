@@ -65,14 +65,13 @@ async function startWhatsApp(phoneForPair = null) {
       }
     });
 
-    // 🔐 REQUEST PAIR CODE (SAFE)
+    // 🔐 Pair code request
     if (phoneForPair && !sock.authState.creds.registered) {
       setTimeout(async () => {
         try {
           pairingCode = await sock.requestPairingCode(phoneForPair);
-          console.log("🔐 Pairing Code:", pairingCode);
+          console.log("🔐 Pair Code:", pairingCode);
         } catch (e) {
-          console.error("Pairing failed:", e.message);
           pairingCode = "FAILED";
         }
       }, 3000);
@@ -84,11 +83,10 @@ async function startWhatsApp(phoneForPair = null) {
       if (!m?.message) return;
 
       const jid = m.key.remoteJid;
-
-      // Ignore WhatsApp status & system messages
       if (jid === "status@broadcast") return;
 
-      // Extract text
+      const isGroup = jid.endsWith("@g.us");
+
       const type = Object.keys(m.message)[0];
       const text =
         type === "conversation"
@@ -99,44 +97,105 @@ async function startWhatsApp(phoneForPair = null) {
 
       if (!text || !text.startsWith(".")) return;
 
-      // 🛑 Prevent loops (ignore bot's own sent replies)
+      // Prevent loops
       const isBotEcho =
         m.key.fromMe &&
         m.message.extendedTextMessage?.contextInfo?.stanzaId;
-
       if (isBotEcho) return;
 
       const command = text.slice(1).toLowerCase();
+      const sender = m.key.participant || jid;
 
-      console.log("CMD:", command, "| fromMe:", m.key.fromMe);
+      console.log("CMD:", command, "| from:", sender);
 
-      switch (command) {
-        case "ping":
-          await sock.sendMessage(jid, { text: "🏓 Pong!" });
-          break;
+      /* ===================== COMMANDS ===================== */
 
-        case "hi":
-          await sock.sendMessage(jid, {
-            text: "Hello 👋 Viral-Bot Mini is online"
+      if (command === "alive") {
+        return sock.sendMessage(jid, {
+          text: "✅ *Viral-Bot Mini is Alive & Running!*"
+        });
+      }
+
+      if (command === "ping") {
+        return sock.sendMessage(jid, { text: "🏓 Pong!" });
+      }
+
+      if (command === "hi") {
+        return sock.sendMessage(jid, {
+          text: "Hello 👋 Viral-Bot Mini online"
+        });
+      }
+
+      if (command === "menu") {
+        return sock.sendMessage(jid, {
+          text: `*Viral-Bot Mini Menu*
+
+.alive  – bot status
+.ping   – ping test
+.hi     – greeting
+.tagall – tag everyone (group)
+.mute   – close group (admin)
+.unmute – open group (admin)
+.help   – help info`
+        });
+      }
+
+      if (command === "help") {
+        return sock.sendMessage(jid, {
+          text: "Use `.menu` to see all commands"
+        });
+      }
+
+      /* ===================== GROUP COMMANDS ===================== */
+
+      if (command === "tagall") {
+        if (!isGroup)
+          return sock.sendMessage(jid, { text: "❌ Group only command" });
+
+        const metadata = await sock.groupMetadata(jid);
+        const members = metadata.participants;
+
+        let textTag = "*📣 Tag All*\n\n";
+        const mentions = [];
+
+        for (const p of members) {
+          textTag += `@${p.id.split("@")[0]}\n`;
+          mentions.push(p.id);
+        }
+
+        return sock.sendMessage(jid, {
+          text: textTag,
+          mentions
+        });
+      }
+
+      if (command === "mute" || command === "unmute") {
+        if (!isGroup)
+          return sock.sendMessage(jid, { text: "❌ Group only command" });
+
+        const metadata = await sock.groupMetadata(jid);
+        const adminIds = metadata.participants
+          .filter(p => p.admin)
+          .map(p => p.id);
+
+        if (!adminIds.includes(sender))
+          return sock.sendMessage(jid, {
+            text: "❌ Admins only"
           });
-          break;
 
-        case "menu":
-          await sock.sendMessage(jid, {
-            text: `*Viral-Bot Mini Menu*
+        await sock.groupSettingUpdate(
+          jid,
+          command === "mute"
+            ? "announcement"
+            : "not_announcement"
+        );
 
-.ping  – check status
-.hi    – greeting
-.menu  – show commands
-.help  – help info`
-          });
-          break;
-
-        case "help":
-          await sock.sendMessage(jid, {
-            text: "Use `.menu` to see available commands"
-          });
-          break;
+        return sock.sendMessage(jid, {
+          text:
+            command === "mute"
+              ? "🔇 Group muted (admins only)"
+              : "🔊 Group unmuted (everyone can chat)"
+        });
       }
     });
 
