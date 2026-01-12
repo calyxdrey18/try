@@ -66,7 +66,7 @@ function getBotInfo() {
 ────────────────────
 Version: 2.0.0
 Status: ONLINE
-Developer: Calyx Drey 
+Developer: Viral-Bot Team
 Platform: Node.js + Baileys
 Uptime: 24/7 Active
 
@@ -77,14 +77,14 @@ Uptime: 24/7 Active
 • Admin Controls
 • User Management
 
-📞 Support: @+263786624966`);
+📞 Support: @your_support`);
 }
 
 function getAbout() {
   return createStyledMessage("ABOUT DEVELOPER",
     `👨‍💻 *Developer Information*
 ────────────────────
-Name: Calyx Drey
+Name: Viral-Bot Team
 Experience: 3+ Years
 Specialization: WhatsApp Bots
 Languages: JavaScript, Python
