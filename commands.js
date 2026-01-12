@@ -12,9 +12,8 @@ const {
 } = require('./utils');
 
 class CommandHandler {
-  constructor(sock, botId) {
+  constructor(sock) {
     this.sock = sock;
-    this.botId = botId; // Unique ID for this bot instance
     this.stats = {
       commandsExecuted: 0,
       messagesProcessed: 0,
@@ -32,10 +31,9 @@ class CommandHandler {
     const isGroup = jid.endsWith("@g.us");
     const sender = isGroup ? m.key.participant || jid : jid;
 
-    // Initialize group settings with bot-specific key
-    const groupKey = `${this.botId}:${jid}`;
-    if (isGroup && !this.groupSettings.has(groupKey)) {
-      this.groupSettings.set(groupKey, {
+    // Initialize group settings
+    if (isGroup && !this.groupSettings.has(jid)) {
+      this.groupSettings.set(jid, {
         welcome: true,
         antilink: false,
         antisticker: false,
@@ -57,18 +55,20 @@ class CommandHandler {
     // Extract text from message
     const type = Object.keys(m.message)[0];
     let text = "";
+    let quotedMessage = null;
     
     if (type === "conversation") {
       text = m.message.conversation;
     } else if (type === "extendedTextMessage") {
       text = m.message.extendedTextMessage.text;
+      quotedMessage = m.message.extendedTextMessage.contextInfo?.quotedMessage;
     } else if (type === "imageMessage" && m.message.imageMessage.caption) {
       text = m.message.imageMessage.caption;
     }
 
     // Check for anti-features BEFORE processing commands
     if (isGroup) {
-      await this.checkAntiFeatures(jid, m, groupKey);
+      await this.checkAntiFeatures(jid, m);
     }
 
     if (!text || !text.startsWith(".")) return;
@@ -81,25 +81,18 @@ class CommandHandler {
     const args = text.slice(1).trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
-    // Get target user - FIXED LOGIC
+    // Get mentioned users OR get user from quoted message
     let targetUsers = [];
     
-    // Method 1: Check if there's a quoted message
-    const quotedMessage = m.message.extendedTextMessage?.contextInfo?.quotedMessage;
-    const quotedParticipant = m.message.extendedTextMessage?.contextInfo?.participant;
-    
-    if (quotedParticipant) {
-      // User replied to a message - get the sender of quoted message
-      targetUsers = [quotedParticipant];
-    } else if (m.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-      // User mentioned someone with @
-      targetUsers = m.message.extendedTextMessage.contextInfo.mentionedJid;
-    } else if (args.length > 1 && args[1].includes('@')) {
-      // User typed phone number/username directly
-      const phoneArg = args[1].replace('@', '').replace(/\D/g, '');
-      if (phoneArg.length >= 10) {
-        targetUsers = [`${phoneArg}@s.whatsapp.net`];
+    if (quotedMessage) {
+      // Get user from quoted message
+      const quotedParticipant = m.message.extendedTextMessage.contextInfo?.participant;
+      if (quotedParticipant) {
+        targetUsers = [quotedParticipant];
       }
+    } else {
+      // Get mentioned users
+      targetUsers = m.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
     }
 
     this.stats.commandsExecuted++;
@@ -127,7 +120,7 @@ class CommandHandler {
       case 'about':
         return this.handleAbout(jid, m);
       case 'welcome':
-        return this.handleWelcome(jid, isGroup, sender, m, groupKey);
+        return this.handleWelcome(jid, isGroup, sender, m);
       case 'promote':
         return this.handlePromote(jid, isGroup, sender, targetUsers, m);
       case 'demote':
@@ -137,11 +130,11 @@ class CommandHandler {
       case 'setdesc':
         return this.handleSetDesc(jid, isGroup, sender, args.slice(1).join(" "), m);
       case 'antilink':
-        return this.handleAntiLink(jid, isGroup, sender, m, groupKey);
+        return this.handleAntiLink(jid, isGroup, sender, m);
       case 'antisticker':
-        return this.handleAntiSticker(jid, isGroup, sender, m, groupKey);
+        return this.handleAntiSticker(jid, isGroup, sender, m);
       case 'antiaudio':
-        return this.handleAntiAudio(jid, isGroup, sender, m, groupKey);
+        return this.handleAntiAudio(jid, isGroup, sender, m);
       case 'setpp':
         return this.handleSetPP(jid, isGroup, sender, m);
       default:
@@ -149,8 +142,8 @@ class CommandHandler {
     }
   }
 
-  async checkAntiFeatures(jid, m, groupKey) {
-    const settings = this.groupSettings.get(groupKey);
+  async checkAntiFeatures(jid, m) {
+    const settings = this.groupSettings.get(jid);
     if (!settings) return;
 
     // Get message text
@@ -163,10 +156,10 @@ class CommandHandler {
     
     if (settings.antilink && hasLink && !m.key.fromMe) {
       try {
-        const participant = m.key.participant || jid;
+        // Send warning and delete message
         await this.sock.sendMessage(jid, {
-          text: `⚠️ *Anti-Link Active*\nLinks are not allowed in this group!\nMessage from @${participant.split('@')[0]} deleted.`,
-          mentions: [participant],
+          text: `⚠️ *Anti-Link Active*\nLinks are not allowed in this group!\nMessage from @${m.key.participant?.split('@')[0] || 'User'} deleted.`,
+          mentions: m.key.participant ? [m.key.participant] : [],
           contextInfo: getNewsletterContext()
         });
         
@@ -180,10 +173,9 @@ class CommandHandler {
     // Check for stickers
     if (settings.antisticker && m.message.stickerMessage && !m.key.fromMe) {
       try {
-        const participant = m.key.participant || jid;
         await this.sock.sendMessage(jid, {
-          text: `⚠️ *Anti-Sticker Active*\nStickers are not allowed in this group!\nSticker from @${participant.split('@')[0]} deleted.`,
-          mentions: [participant],
+          text: `⚠️ *Anti-Sticker Active*\nStickers are not allowed in this group!\nSticker from @${m.key.participant?.split('@')[0] || 'User'} deleted.`,
+          mentions: m.key.participant ? [m.key.participant] : [],
           contextInfo: getNewsletterContext()
         });
         
@@ -196,10 +188,9 @@ class CommandHandler {
     // Check for audio
     if (settings.antiaudio && m.message.audioMessage && !m.key.fromMe) {
       try {
-        const participant = m.key.participant || jid;
         await this.sock.sendMessage(jid, {
-          text: `⚠️ *Anti-Audio Active*\nAudio messages are not allowed in this group!\nAudio from @${participant.split('@')[0]} deleted.`,
-          mentions: [participant],
+          text: `⚠️ *Anti-Audio Active*\nAudio messages are not allowed in this group!\nAudio from @${m.key.participant?.split('@')[0] || 'User'} deleted.`,
+          mentions: m.key.participant ? [m.key.participant] : [],
           contextInfo: getNewsletterContext()
         });
         
@@ -349,7 +340,7 @@ ${new Date().toLocaleString()}`),
     }, { quoted: originalMessage });
   }
 
-  async handleWelcome(jid, isGroup, sender, originalMessage, groupKey) {
+  async handleWelcome(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
@@ -357,11 +348,11 @@ ${new Date().toLocaleString()}`),
       }, { quoted: originalMessage });
     }
 
-    const settings = this.groupSettings.get(groupKey);
+    const settings = this.groupSettings.get(jid);
     if (!settings) return;
 
     settings.welcome = !settings.welcome;
-    this.groupSettings.set(groupKey, settings);
+    this.groupSettings.set(jid, settings);
 
     const status = settings.welcome ? "ENABLED ✅" : "DISABLED ❌";
     return this.sock.sendMessage(jid, {
@@ -394,7 +385,7 @@ ${new Date().toLocaleString()}`),
     if (targetUsers.length === 0) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("USAGE", 
-          "Usage: .promote @user\nOR\nReply to a user's message with .promote\n\nExamples:\n• .promote @username\n• Reply to message with .promote"),
+          "Usage: .promote @user\nOR\nReply to a message with .promote\n\nExample:\n- .promote @username\n- Reply to user's message with .promote"),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
     }
@@ -451,7 +442,7 @@ ${new Date().toLocaleString()}`),
     if (targetUsers.length === 0) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("USAGE", 
-          "Usage: .demote @user\nOR\nReply to a user's message with .demote\n\nExamples:\n• .demote @username\n• Reply to message with .demote"),
+          "Usage: .demote @user\nOR\nReply to a message with .demote\n\nExample:\n- .demote @username\n- Reply to user's message with .demote"),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
     }
@@ -517,7 +508,7 @@ ${new Date().toLocaleString()}`),
     if (targetUsers.length === 0) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("USAGE", 
-          "Usage: .kick @user\nOR\nReply to a user's message with .kick\n\nExamples:\n• .kick @username\n• Reply to message with .kick"),
+          "Usage: .kick @user\nOR\nReply to a message with .kick\n\nExample:\n- .kick @username\n- Reply to user's message with .kick"),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
     }
@@ -648,7 +639,7 @@ ${new Date().toLocaleString()}`),
     }
   }
 
-  async handleAntiLink(jid, isGroup, sender, originalMessage, groupKey) {
+  async handleAntiLink(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
@@ -668,11 +659,11 @@ ${new Date().toLocaleString()}`),
       }, { quoted: originalMessage });
     }
 
-    const settings = this.groupSettings.get(groupKey);
+    const settings = this.groupSettings.get(jid);
     if (!settings) return;
 
     settings.antilink = !settings.antilink;
-    this.groupSettings.set(groupKey, settings);
+    this.groupSettings.set(jid, settings);
 
     const status = settings.antilink ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antilink ? "will be automatically deleted" : "are now allowed";
@@ -684,7 +675,7 @@ ${new Date().toLocaleString()}`),
     }, { quoted: originalMessage });
   }
 
-  async handleAntiSticker(jid, isGroup, sender, originalMessage, groupKey) {
+  async handleAntiSticker(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
@@ -704,11 +695,11 @@ ${new Date().toLocaleString()}`),
       }, { quoted: originalMessage });
     }
 
-    const settings = this.groupSettings.get(groupKey);
+    const settings = this.groupSettings.get(jid);
     if (!settings) return;
 
     settings.antisticker = !settings.antisticker;
-    this.groupSettings.set(groupKey, settings);
+    this.groupSettings.set(jid, settings);
 
     const status = settings.antisticker ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antisticker ? "will be automatically deleted" : "are now allowed";
@@ -720,7 +711,7 @@ ${new Date().toLocaleString()}`),
     }, { quoted: originalMessage });
   }
 
-  async handleAntiAudio(jid, isGroup, sender, originalMessage, groupKey) {
+  async handleAntiAudio(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
@@ -740,11 +731,11 @@ ${new Date().toLocaleString()}`),
       }, { quoted: originalMessage });
     }
 
-    const settings = this.groupSettings.get(groupKey);
+    const settings = this.groupSettings.get(jid);
     if (!settings) return;
 
     settings.antiaudio = !settings.antiaudio;
-    this.groupSettings.set(groupKey, settings);
+    this.groupSettings.set(jid, settings);
 
     const status = settings.antiaudio ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antiaudio ? "will be automatically deleted" : "are now allowed";
