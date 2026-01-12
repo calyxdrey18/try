@@ -45,7 +45,7 @@ async function startWhatsApp(phoneForPair = null) {
 
     sock.ev.on("creds.update", saveCreds);
 
-    sock.ev.on("connection.update", async (u) => {
+    sock.ev.on("connection.update", (u) => {
       const { connection, lastDisconnect } = u;
 
       if (connection === "open") {
@@ -65,13 +65,13 @@ async function startWhatsApp(phoneForPair = null) {
       }
     });
 
-    // 🔐 Pair code request
+    // 🔐 Pairing code
     if (phoneForPair && !sock.authState.creds.registered) {
       setTimeout(async () => {
         try {
           pairingCode = await sock.requestPairingCode(phoneForPair);
           console.log("🔐 Pair Code:", pairingCode);
-        } catch (e) {
+        } catch {
           pairingCode = "FAILED";
         }
       }, 3000);
@@ -87,6 +87,11 @@ async function startWhatsApp(phoneForPair = null) {
 
       const isGroup = jid.endsWith("@g.us");
 
+      // 🔑 FIXED sender detection
+      const sender = isGroup
+        ? m.key.participant || m.key.remoteJid
+        : jid;
+
       const type = Object.keys(m.message)[0];
       const text =
         type === "conversation"
@@ -97,54 +102,36 @@ async function startWhatsApp(phoneForPair = null) {
 
       if (!text || !text.startsWith(".")) return;
 
-      // Prevent loops
+      // 🛑 prevent loops
       const isBotEcho =
         m.key.fromMe &&
         m.message.extendedTextMessage?.contextInfo?.stanzaId;
       if (isBotEcho) return;
 
       const command = text.slice(1).toLowerCase();
-      const sender = m.key.participant || jid;
 
-      console.log("CMD:", command, "| from:", sender);
+      console.log("CMD:", command, "| GROUP:", isGroup);
 
-      /* ===================== COMMANDS ===================== */
+      /* ===================== BASIC ===================== */
 
-      if (command === "alive") {
+      if (command === "alive")
         return sock.sendMessage(jid, {
-          text: "✅ *Viral-Bot Mini is Alive & Running!*"
+          text: "✅ *Viral-Bot Mini is Alive & Running*"
         });
-      }
 
-      if (command === "ping") {
+      if (command === "ping")
         return sock.sendMessage(jid, { text: "🏓 Pong!" });
-      }
 
-      if (command === "hi") {
-        return sock.sendMessage(jid, {
-          text: "Hello 👋 Viral-Bot Mini online"
-        });
-      }
-
-      if (command === "menu") {
+      if (command === "menu")
         return sock.sendMessage(jid, {
           text: `*Viral-Bot Mini Menu*
 
-.alive  – bot status
-.ping   – ping test
-.hi     – greeting
-.tagall – tag everyone (group)
-.mute   – close group (admin)
-.unmute – open group (admin)
-.help   – help info`
+.alive
+.ping
+.tagall
+.mute
+.unmute`
         });
-      }
-
-      if (command === "help") {
-        return sock.sendMessage(jid, {
-          text: "Use `.menu` to see all commands"
-        });
-      }
 
       /* ===================== GROUP COMMANDS ===================== */
 
@@ -152,16 +139,11 @@ async function startWhatsApp(phoneForPair = null) {
         if (!isGroup)
           return sock.sendMessage(jid, { text: "❌ Group only command" });
 
-        const metadata = await sock.groupMetadata(jid);
-        const members = metadata.participants;
+        const meta = await sock.groupMetadata(jid);
+        const mentions = meta.participants.map(p => p.id);
 
-        let textTag = "*📣 Tag All*\n\n";
-        const mentions = [];
-
-        for (const p of members) {
-          textTag += `@${p.id.split("@")[0]}\n`;
-          mentions.push(p.id);
-        }
+        const textTag = "*📣 Tag All*\n\n" +
+          mentions.map(u => `@${u.split("@")[0]}`).join("\n");
 
         return sock.sendMessage(jid, {
           text: textTag,
@@ -173,12 +155,12 @@ async function startWhatsApp(phoneForPair = null) {
         if (!isGroup)
           return sock.sendMessage(jid, { text: "❌ Group only command" });
 
-        const metadata = await sock.groupMetadata(jid);
-        const adminIds = metadata.participants
+        const meta = await sock.groupMetadata(jid);
+        const admins = meta.participants
           .filter(p => p.admin)
           .map(p => p.id);
 
-        if (!adminIds.includes(sender))
+        if (!admins.includes(sender))
           return sock.sendMessage(jid, {
             text: "❌ Admins only"
           });
@@ -193,14 +175,14 @@ async function startWhatsApp(phoneForPair = null) {
         return sock.sendMessage(jid, {
           text:
             command === "mute"
-              ? "🔇 Group muted (admins only)"
-              : "🔊 Group unmuted (everyone can chat)"
+              ? "🔇 Group muted"
+              : "🔊 Group unmuted"
         });
       }
     });
 
-  } catch (err) {
-    console.error("CRITICAL ERROR:", err);
+  } catch (e) {
+    console.error("CRITICAL:", e);
     isStarting = false;
   }
 }
@@ -209,27 +191,27 @@ async function startWhatsApp(phoneForPair = null) {
 app.post("/pair", async (req, res) => {
   let phone = String(req.body.phone || "").replace(/\D/g, "");
   if (!phone)
-    return res.json({ success: false, error: "Invalid phone number" });
+    return res.json({ success: false, error: "Invalid phone" });
 
   pairingCode = null;
   await startWhatsApp(phone);
 
-  let tries = 0;
+  let t = 0;
   const wait = setInterval(() => {
-    tries++;
+    t++;
     if (pairingCode) {
       clearInterval(wait);
       return res.json({ success: true, code: pairingCode });
     }
-    if (tries > 25) {
+    if (t > 25) {
       clearInterval(wait);
       return res.json({ success: false, error: "Timeout" });
     }
   }, 1000);
 });
 
-/* ===================== START SERVER ===================== */
+/* ===================== START ===================== */
 app.listen(PORT, () => {
-  console.log("🚀 Viral-Bot Mini running on port", PORT);
+  console.log("🚀 Viral-Bot Mini running on", PORT);
   if (fs.existsSync("./auth/creds.json")) startWhatsApp();
 });
