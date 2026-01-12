@@ -16,10 +16,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(__dirname));
-
-app.get("/", (_, res) =>
-  res.sendFile(path.join(__dirname, "index.html"))
-);
+app.get("/", (_, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 /* ================= CONFIG ================= */
 const BOT_IMAGE_URL =
@@ -54,7 +51,7 @@ async function startWhatsApp(phoneForPair = null) {
 
   sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
     if (connection === "open") {
-      console.log("✅ WhatsApp connected");
+      console.log("✅ WhatsApp Connected");
       pairingCode = null;
       starting = false;
     }
@@ -71,7 +68,7 @@ async function startWhatsApp(phoneForPair = null) {
   if (phoneForPair && !sock.authState.creds.registered) {
     setTimeout(async () => {
       pairingCode = await sock.requestPairingCode(phoneForPair);
-      console.log("🔐 Pair code:", pairingCode);
+      console.log("🔐 Pair Code:", pairingCode);
     }, 3000);
   }
 
@@ -94,43 +91,51 @@ async function startWhatsApp(phoneForPair = null) {
     if (!text.startsWith(".")) return;
     const command = text.slice(1).toLowerCase();
 
-    /* ============ BASIC COMMANDS ============ */
+    /* ========= BASIC ========= */
 
     if (command === "ping") {
-      return sock.sendMessage(jid, { text: "🏓 Pong!" });
+      return sock.sendMessage(jid, { text: "🏓 *PONG!*" });
     }
 
     if (command === "alive") {
       return sock.sendMessage(jid, {
         image: { url: BOT_IMAGE_URL },
-        caption: "✅ *Viral-Bot Mini is Alive*"
+        caption: `🟢 *BOT STATUS*
+━━━━━━━━━━━━━━
+✅ *Viral-Bot Mini is ONLINE*
+⚡ Fast & Stable`
       });
     }
 
-    /* ============ MENU (FIXED BUTTON) ============ */
+    /* ========= MENU (REAL BUTTON) ========= */
 
     if (command === "menu") {
+      const media = await sock.prepareMessageMedia(
+        { image: { url: BOT_IMAGE_URL } },
+        { upload: sock.waUploadToServer }
+      );
+
       return sock.sendMessage(jid, {
         interactiveMessage: {
           header: {
             hasMediaAttachment: true,
-            imageMessage: await sock.prepareMessageMedia(
-              { image: { url: BOT_IMAGE_URL } },
-              { upload: sock.waUploadToServer }
-            )
+            imageMessage: media.imageMessage
           },
           body: {
             text: `📢 *${CHANNEL_NAME}*
+━━━━━━━━━━━━━━
 
-🤖 *Viral-Bot Mini Commands*
+🤖 *VIRAL-BOT MINI*
 
-.alive
-.ping
-.tagall
-.mute
-.unmute
+✨ Available Commands:
+• .alive
+• .ping
+• .tagall
+• .mute
+• .unmute
 
-🔔 Follow our WhatsApp Channel for updates`
+🔔 Get updates, fixes & new features
+by following our official channel.`
           },
           nativeFlowMessage: {
             buttons: [
@@ -147,7 +152,7 @@ async function startWhatsApp(phoneForPair = null) {
       });
     }
 
-    /* ============ GROUP COMMANDS ============ */
+    /* ========= GROUP ========= */
 
     if (command === "tagall") {
       if (!isGroup)
@@ -158,7 +163,7 @@ async function startWhatsApp(phoneForPair = null) {
 
       return sock.sendMessage(jid, {
         text:
-          "*📣 Tag All*\n\n" +
+          "📣 *TAG ALL*\n━━━━━━━━━━━━━━\n" +
           mentions.map(u => `@${u.split("@")[0]}`).join("\n"),
         mentions
       });
@@ -178,16 +183,14 @@ async function startWhatsApp(phoneForPair = null) {
 
       await sock.groupSettingUpdate(
         jid,
-        command === "mute"
-          ? "announcement"
-          : "not_announcement"
+        command === "mute" ? "announcement" : "not_announcement"
       );
 
       return sock.sendMessage(jid, {
         text:
           command === "mute"
-            ? "🔇 Group muted"
-            : "🔊 Group unmuted"
+            ? "🔇 *Group Muted*"
+            : "🔊 *Group Unmuted*"
       });
     }
   });
@@ -215,8 +218,8 @@ app.post("/pair", async (req, res) => {
   }, 1000);
 });
 
-/* ================= START SERVER ================= */
+/* ================= START ================= */
 app.listen(PORT, () => {
-  console.log("🚀 Server running on", PORT);
+  console.log("🚀 Viral-Bot Mini running on", PORT);
   if (fs.existsSync("./auth/creds.json")) startWhatsApp();
 });
