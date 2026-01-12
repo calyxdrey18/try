@@ -17,15 +17,78 @@ function getCommandList() {
 
 🤖  BOT COMMANDS
 ────────────────────────
-█ .alive    - Check bot status
-█ .ping     - Ping test
-█ .tagall   - Tag all members
-█ .mute     - Mute group (admin)
-█ .unmute   - Unmute group (admin)
+
+🎯 *GENERAL COMMANDS*
+█ .help    - Show this help menu
+█ .info    - Get bot information
+█ .stats   - Display bot statistics
+█ .about   - About bot & developer
+█ .ping    - Check bot responsiveness
+█ .alive   - Check if bot is online
+█ .menu    - Full command menu
+
+👥 *GROUP MANAGEMENT*
+█ .welcome    - Toggle welcome messages
+█ .promote @user  - Make user admin
+█ .demote @user   - Remove admin rights
+█ .kick @user     - Remove user from group
+█ .setdesc    - Change group description
+█ .setpp      - Change group profile picture
+█ .mute       - Close group (admin only)
+█ .unmute     - Open group (admin only)
+█ .antilink   - Toggle anti-link protection
+█ .antisticker - Toggle anti-sticker
+█ .antiaudio  - Toggle anti-audio
+█ .tagall     - Tag all group members
 
 🔔 Follow our channel for updates!
 
 ╚═────────────────────────═╝`;
+}
+
+function getBotInfo() {
+  return createStyledMessage("BOT INFORMATION",
+    `🤖 *Viral-Bot Mini*
+────────────────────
+Version: 2.0.0
+Status: ONLINE
+Developer: Viral-Bot Team
+Platform: Node.js + Baileys
+Uptime: 24/7 Active
+
+💡 Features:
+• Group Management
+• Anti-Spam Protection
+• Media Filtering
+• Admin Controls
+• User Management
+
+📞 Support: @your_support`);
+}
+
+function getAbout() {
+  return createStyledMessage("ABOUT DEVELOPER",
+    `👨‍💻 *Developer Information*
+────────────────────
+Name: Viral-Bot Team
+Experience: 3+ Years
+Specialization: WhatsApp Bots
+Languages: JavaScript, Python
+
+🌟 *Bot Features*
+────────────────────
+• 24/7 Uptime
+• Secure & Private
+• Fast Response
+• Regular Updates
+• Multi-language Support
+
+🔗 *Contact*
+────────────────────
+Channel: ${CHANNEL_LINK}
+Support: Available 24/7
+
+Thank you for using Viral-Bot Mini! 🚀`);
 }
 
 module.exports = {
@@ -33,5 +96,7 @@ module.exports = {
   CHANNEL_NAME,
   CHANNEL_LINK,
   createStyledMessage,
-  getCommandList
+  getCommandList,
+  getBotInfo,
+  getAbout
 };
