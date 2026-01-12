@@ -173,7 +173,8 @@ async function startWhatsApp(phoneForPair = null) {
 
       if (command === "menu") {
         return sock.sendMessage(jid, {
-          text: getCommandList(),
+          image: { url: BOT_IMAGE_URL },
+          caption: getCommandList(),
           buttons: [
             {
               buttonId: "open_channel",
