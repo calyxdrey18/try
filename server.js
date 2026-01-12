@@ -21,14 +21,18 @@ app.get("/", (_, res) =>
   res.sendFile(path.join(__dirname, "index.html"))
 );
 
+/* ===================== CONFIG ===================== */
+const BOT_IMAGE_URL =
+  "https://img.sanishtech.com/u/d52d507c27a7919e9e19448a073ba4cb.jpg";
+
+const CHANNEL_NAME = "Viral-Bot Mini Updates";
+const CHANNEL_LINK =
+  "https://whatsapp.com/channel/0029VbCGIzTJkK7C0wtGy31s";
+
 /* ===================== GLOBAL STATE ===================== */
 let sock = null;
 let pairingCode = null;
 let isStarting = false;
-
-// 🌐 BOT IMAGE URL
-const BOT_IMAGE_URL =
-  "https://img.sanishtech.com/u/d52d507c27a7919e9e19448a073ba4cb.jpg";
 
 /* ===================== WHATSAPP CORE ===================== */
 async function startWhatsApp(phoneForPair = null) {
@@ -63,16 +67,18 @@ async function startWhatsApp(phoneForPair = null) {
           lastDisconnect?.error?.output?.statusCode !==
           DisconnectReason.loggedOut;
 
+        console.log("❌ Disconnected. Reconnect:", shouldReconnect);
         isStarting = false;
         if (shouldReconnect) startWhatsApp();
       }
     });
 
-    // 🔐 Pair code request
+    // Pairing code request
     if (phoneForPair && !sock.authState.creds.registered) {
       setTimeout(async () => {
         try {
           pairingCode = await sock.requestPairingCode(phoneForPair);
+          console.log("🔐 Pairing Code:", pairingCode);
         } catch {
           pairingCode = "FAILED";
         }
@@ -92,6 +98,19 @@ async function startWhatsApp(phoneForPair = null) {
         ? m.key.participant || jid
         : jid;
 
+      /* -------- Button Click -------- */
+      if (m.message.buttonsResponseMessage) {
+        const btn =
+          m.message.buttonsResponseMessage.selectedButtonId;
+
+        if (btn === "open_channel") {
+          return sock.sendMessage(jid, {
+            text: `📢 *${CHANNEL_NAME}*\n\nFollow our WhatsApp Channel:\n${CHANNEL_LINK}`
+          });
+        }
+      }
+
+      /* -------- Extract Text -------- */
       const type = Object.keys(m.message)[0];
       const text =
         type === "conversation"
@@ -102,7 +121,7 @@ async function startWhatsApp(phoneForPair = null) {
 
       if (!text || !text.startsWith(".")) return;
 
-      // 🛑 prevent reply loops
+      // Prevent reply loops
       const isBotEcho =
         m.key.fromMe &&
         m.message.extendedTextMessage?.contextInfo?.stanzaId;
@@ -110,20 +129,7 @@ async function startWhatsApp(phoneForPair = null) {
 
       const command = text.slice(1).toLowerCase();
 
-      /* ===================== IMAGE COMMANDS ===================== */
-
-      if (command === "menu") {
-        return sock.sendMessage(jid, {
-          image: { url: BOT_IMAGE_URL },
-          caption: `🤖 *Viral-Bot Mini*
-
-.alive  – bot status
-.ping   – ping test
-.tagall – tag everyone
-.mute   – close group (admin)
-.unmute – open group (admin)`
-        });
-      }
+      /* ===================== BASIC ===================== */
 
       if (command === "alive") {
         return sock.sendMessage(jid, {
@@ -132,20 +138,37 @@ async function startWhatsApp(phoneForPair = null) {
         });
       }
 
-      if (command === "help") {
-        return sock.sendMessage(jid, {
-          image: { url: BOT_IMAGE_URL },
-          caption: "Type `.menu` to see all commands"
-        });
-      }
-
-      /* ===================== TEXT COMMANDS ===================== */
-
       if (command === "ping") {
         return sock.sendMessage(jid, { text: "🏓 Pong!" });
       }
 
-      /* ===================== GROUP COMMANDS ===================== */
+      if (command === "menu") {
+        return sock.sendMessage(jid, {
+          image: { url: BOT_IMAGE_URL },
+          caption: `📢 *${CHANNEL_NAME}*
+────────────────────
+
+🤖 *Viral-Bot Mini*
+
+.alive  – bot status
+.ping   – ping test
+.tagall – tag everyone
+.mute   – close group (admin)
+.unmute – open group (admin)
+
+🔔 Follow our channel for updates`,
+          buttons: [
+            {
+              buttonId: "open_channel",
+              buttonText: { displayText: "📢 View Channel" },
+              type: 1
+            }
+          ],
+          headerType: 4
+        });
+      }
+
+      /* ===================== GROUP ===================== */
 
       if (command === "tagall") {
         if (!isGroup)
@@ -158,10 +181,7 @@ async function startWhatsApp(phoneForPair = null) {
           "*📣 Tag All*\n\n" +
           mentions.map(u => `@${u.split("@")[0]}`).join("\n");
 
-        return sock.sendMessage(jid, {
-          text: msg,
-          mentions
-        });
+        return sock.sendMessage(jid, { text: msg, mentions });
       }
 
       if (command === "mute" || command === "unmute") {
@@ -223,6 +243,6 @@ app.post("/pair", async (req, res) => {
 
 /* ===================== START ===================== */
 app.listen(PORT, () => {
-  console.log("🚀 Viral-Bot Mini running");
+  console.log("🚀 Viral-Bot Mini running on port", PORT);
   if (fs.existsSync("./auth/creds.json")) startWhatsApp();
 });
