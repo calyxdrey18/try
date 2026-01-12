@@ -1,60 +1,320 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Viral-Bot Mini</title>
+  <meta charset="UTF-8" />
+  <title>Viral-Bot Mini | Obsidian Edition</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
+    :root {
+      --bg: #020617;
+      --card-bg: rgba(7, 10, 25, 0.85);
+      --accent: #10b981;
+      --accent-dim: rgba(16, 185, 129, 0.2);
+      --text-main: #ffffff;
+      --text-dim: #94a3b8;
+      --error: #ff4757;
+      --border: rgba(255, 255, 255, 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+
     body {
-      background: #020617;
-      color: white;
-      font-family: Arial;
-      text-align: center;
-      padding: 50px;
+      min-height: 100vh;
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(14, 165, 233, 0.1) 0px, transparent 50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-main);
+      overflow-x: hidden;
     }
-    input, button {
-      padding: 12px;
-      margin: 10px;
-      border-radius: 6px;
+
+    /* Animated background elements */
+    .glow-circle {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: var(--accent);
+      filter: blur(120px);
+      border-radius: 50%;
+      opacity: 0.1;
+      z-index: -1;
+      animation: drift 10s infinite alternate;
+    }
+
+    @keyframes drift {
+      from { transform: translate(-10%, -10%); }
+      to { transform: translate(10%, 10%); }
+    }
+
+    .container {
+      width: 100%;
+      max-width: 440px;
+      padding: 20px;
+      animation: fadeIn 1s ease-out;
+    }
+
+    .glass-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      padding: 40px;
+      box-shadow: 0 40px 100px -20px rgba(0,0,0,0.8);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+      transition: 0.5s;
+    }
+
+    .glass-card:hover::before { left: 100%; transition: 0.8s; }
+
+    .branding { text-align: center; margin-bottom: 35px; }
+    .branding h1 { 
+      font-size: 2rem; 
+      font-weight: 900; 
+      letter-spacing: -1.5px;
+      background: linear-gradient(to right, #10b981, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 6px 14px;
+      border-radius: 100px;
+      margin-top: 10px;
+      letter-spacing: 1px;
+    }
+
+    .pulse-dot {
+      width: 5px; height: 5px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .input-group { margin-bottom: 20px; position: relative; }
+    
+    input[type="tel"] {
+      width: 100%;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      padding: 18px;
+      border-radius: 18px;
+      color: white;
+      font-size: 1rem;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    input[type="tel"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(0,0,0,0.5);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+      transform: scale(1.02);
+    }
+
+    .main-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #022c22;
+      font-weight: 800;
+      padding: 18px;
       border: none;
-    }
-    button {
-      background: #6366f1;
-      color: white;
+      border-radius: 18px;
       cursor: pointer;
+      font-size: 0.95rem;
+      transition: all 0.3s;
     }
-    .code {
-      margin-top: 20px;
-      font-size: 22px;
-      color: #22c55e;
+
+    .main-btn:hover:not(:disabled) {
+      transform: translateY(-3px);
+      box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.4);
     }
+
+    .main-btn:active { transform: translateY(0); }
+
+    .code-display {
+      margin-top: 30px;
+      padding: 30px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+
+    #codeValue {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: 5px;
+      margin-bottom: 15px;
+      text-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .copy-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+    .setup-guide { margin-top: 35px; border-top: 1px solid var(--border); padding-top: 25px; }
+    .setup-guide h2 { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px; }
+    
+    .step-item {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .step-dot { color: var(--accent); font-weight: bold; }
+
+    #errorPopup {
+      color: var(--error);
+      background: rgba(239, 68, 68, 0.1);
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      text-align: center;
+      margin-bottom: 15px;
+      display: none;
+      animation: shake 0.4s ease-in-out;
+    }
+
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Loader */
+    .loader { display: none; justify-content: center; gap: 8px; margin: 20px 0; }
+    .loader div { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: jump 0.6s infinite alternate; }
+    .loader div:nth-child(2) { animation-delay: 0.2s; }
+    .loader div:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes jump { to { transform: translateY(-10px); opacity: 0.4; } }
   </style>
 </head>
 <body>
+  <div class="glow-circle"></div>
+  <div class="container">
+    <div class="glass-card">
+      <div class="branding">
+        <h1>Viral-Bot Mini</h1>
+        <div class="status-badge">
+          <div class="pulse-dot"></div>
+          CORE SECURED
+        </div>
+      </div>
 
-<h1>🤖 Viral-Bot Mini</h1>
-<p>Enter WhatsApp number (with country code)</p>
+      <div id="errorPopup"></div>
 
-<input id="num" placeholder="2637xxxxxxx">
-<br>
-<button onclick="pair()">Get Pairing Code</button>
+      <div class="input-group">
+        <input type="tel" id="phone" placeholder="Enter Phone (e.g. 23481...)" />
+      </div>
 
-<div class="code" id="res"></div>
+      <button class="main-btn" id="pairBtn">GENERATE ACCESS CODE</button>
 
-<script>
-async function pair() {
-  const number = document.getElementById("num").value
-  document.getElementById("res").innerText = "⏳ Generating..."
+      <div class="loader" id="loader">
+        <div></div><div></div><div></div>
+      </div>
 
-  const r = await fetch("/pair", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ number })
-  })
+      <div class="code-display">
+        <div id="codeValue">---- ----</div>
+        <button class="copy-btn" id="copyBtn" disabled>COPY TO CLIPBOARD</button>
+      </div>
 
-  const d = await r.json()
-  document.getElementById("res").innerText =
-    d.code ? `PAIR CODE: ${d.code}` : d.error
-}
-</script>
+      <div class="setup-guide">
+        <h2>LINKING STEPS</h2>
+        <div class="step-item"><span class="step-dot">01</span><p>Go to WhatsApp Settings > Linked Devices</p></div>
+        <div class="step-item"><span class="step-dot">02</span><p>Select 'Link with phone number instead'</p></div>
+        <div class="step-item"><span class="step-dot">03</span><p>Paste the 8-digit code above</p></div>
+      </div>
+    </div>
+  </div>
 
+  <script>
+    const pairBtn = document.getElementById('pairBtn');
+    const loader = document.getElementById('loader');
+    const codeValue = document.getElementById('codeValue');
+    const copyBtn = document.getElementById('copyBtn');
+    const errorPopup = document.getElementById('errorPopup');
+    const phoneInput = document.getElementById('phone');
+
+    function showError(msg) {
+      errorPopup.textContent = msg;
+      errorPopup.style.display = 'block';
+      setTimeout(() => { errorPopup.style.display = 'none'; }, 5000);
+    }
+
+    pairBtn.addEventListener('click', async () => {
+      const phone = phoneInput.value.trim();
+      if (!phone) return showError('Phone number is required');
+
+      pairBtn.disabled = true;
+      loader.style.display = 'flex';
+      codeValue.textContent = '---- ----';
+
+      try {
+        const res = await fetch('/pair', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          codeValue.textContent = data.code;
+          copyBtn.disabled = false;
+        } else {
+          showError(data.error || 'Request failed');
+        }
+      } catch (e) {
+        showError('System offline. Check connection.');
+      } finally {
+        pairBtn.disabled = false;
+        loader.style.display = 'none';
+      }
+    });
+
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(codeValue.textContent);
+      const oldText = copyBtn.textContent;
+      copyBtn.textContent = 'COPIED!';
+      copyBtn.style.color = '#10b981';
+      setTimeout(() => { 
+        copyBtn.textContent = oldText; 
+        copyBtn.style.color = '';
+      }, 2000);
+    });
+  </script>
 </body>
 </html>
