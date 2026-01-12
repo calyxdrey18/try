@@ -29,57 +29,31 @@ const CHANNEL_NAME = "Viral-Bot Mini Updates";
 const CHANNEL_LINK =
   "https://whatsapp.com/channel/0029VbCGIzTJkK7C0wtGy31s";
 
-/* ===================== STYLE UTILITIES ===================== */
-const styles = {
-  borderTop: "─",
-  borderBottom: "─",
-  borderSide: "█",
-  cornerTL: "╔═",
-  cornerTR: "═╗",
-  cornerBL: "╚═",
-  cornerBR: "═╝",
-  borderLength: 28
-};
+/* ===================== SIMPLE FORMATTING ===================== */
+function createStyledMessage(title, content) {
+  // Simple styling without complex characters that might break WhatsApp
+  const border = "─".repeat(28);
+  return `╔═─── 📢 ${title} ───═╗
 
-function createBox(content, title = null) {
-  const lines = content.split('\n');
-  const maxLength = Math.max(...lines.map(l => l.length), title ? title.length : 0);
-  const borderLength = Math.max(maxLength, styles.borderLength);
-  
-  let box = '';
-  
-  // Top border with optional title
-  if (title) {
-    const titleFormatted = ` 📢 ${title.toUpperCase()} `;
-    box += `${styles.cornerTL}${styles.borderTop.repeat(borderLength - titleFormatted.length + 2)}${titleFormatted}${styles.borderTop.repeat(2)}${styles.cornerTR}\n`;
-  } else {
-    box += `${styles.cornerTL}${styles.borderTop.repeat(borderLength)}${styles.cornerTR}\n`;
-  }
-  
-  // Content
-  lines.forEach(line => {
-    box += `${styles.borderSide} ${line}${' '.repeat(borderLength - line.length - 1)}${styles.borderSide}\n`;
-  });
-  
-  // Bottom border
-  box += `${styles.cornerBL}${styles.borderBottom.repeat(borderLength)}${styles.cornerBR}`;
-  
-  return box;
+${content}
+
+╚═${border}═╝`;
 }
 
-function createCommandList() {
-  return createBox(
-`🤖  BOT COMMANDS
-${styles.borderBottom.repeat(26)}
+function getCommandList() {
+  return `╔═─── 📢 VIRAL-BOT MINI ───═╗
+
+🤖  BOT COMMANDS
+────────────────────────
 █ .alive    - Check bot status
 █ .ping     - Ping test
 █ .tagall   - Tag all members
 █ .mute     - Mute group (admin)
 █ .unmute   - Unmute group (admin)
 
-🔔 Follow our channel for updates!`,
-"VIRAL-BOT MINI"
-  );
+🔔 Follow our channel for updates!
+
+╚═────────────────────────═╝`;
 }
 
 /* ===================== GLOBAL STATE ===================== */
@@ -180,27 +154,26 @@ async function startWhatsApp(phoneForPair = null) {
         m.message.extendedTextMessage?.contextInfo?.stanzaId;
       if (isBotEcho) return;
 
-      const command = text.slice(1).toLowerCase();
+      const command = text.slice(1).toLowerCase().trim();
 
       /* ===================== BASIC ===================== */
 
       if (command === "alive") {
         return sock.sendMessage(jid, {
           image: { url: BOT_IMAGE_URL },
-          caption: `✅ *Viral-Bot Mini is Alive & Running*\n\n${createBox("Status: ONLINE\nUptime: 100%\nVersion: 2.0.0", "SYSTEM STATUS")}`
+          caption: createStyledMessage("SYSTEM STATUS", "✅ Viral-Bot Mini is Alive & Running\n\nStatus: ONLINE\nUptime: 100%\nVersion: 2.0.0")
         });
       }
 
       if (command === "ping") {
         return sock.sendMessage(jid, { 
-          text: createBox("🏓 PONG!\nResponse: Instant\nStatus: Optimal", "PING TEST")
+          text: createStyledMessage("PING TEST", "🏓 PONG!\nResponse: Instant\nStatus: Optimal")
         });
       }
 
       if (command === "menu") {
         return sock.sendMessage(jid, {
-          image: { url: BOT_IMAGE_URL },
-          caption: createCommandList(),
+          text: getCommandList(),
           buttons: [
             {
               buttonId: "open_channel",
@@ -208,7 +181,7 @@ async function startWhatsApp(phoneForPair = null) {
               type: 1
             }
           ],
-          headerType: 4
+          headerType: 1
         });
       }
 
@@ -217,24 +190,19 @@ async function startWhatsApp(phoneForPair = null) {
       if (command === "tagall") {
         if (!isGroup)
           return sock.sendMessage(jid, { 
-            text: createBox("❌ COMMAND FAILED\nThis command only works in groups!", "ERROR")
+            text: createStyledMessage("ERROR", "❌ This command only works in groups!")
           });
 
         const meta = await sock.groupMetadata(jid);
         const mentions = meta.participants.map(p => p.id);
 
         const mentionList = mentions.map(u => `@${u.split("@")[0]}`).join(" ");
-        const tagBox = createBox(
-`📣 TAG ALL MEMBERS
-${styles.borderBottom.repeat(24)}
-Total: ${mentions.length} members
-
-${mentionList}`,
-"GROUP ACTION"
-        );
-
+        
         return sock.sendMessage(jid, { 
-          text: tagBox, 
+          text: createStyledMessage(
+            "GROUP ACTION", 
+            `📣 TAG ALL MEMBERS\n\nTotal: ${mentions.length} members\n\n${mentionList}`
+          ), 
           mentions 
         });
       }
@@ -242,7 +210,7 @@ ${mentionList}`,
       if (command === "mute" || command === "unmute") {
         if (!isGroup)
           return sock.sendMessage(jid, { 
-            text: createBox("❌ COMMAND FAILED\nThis command only works in groups!", "ERROR")
+            text: createStyledMessage("ERROR", "❌ This command only works in groups!")
           });
 
         const meta = await sock.groupMetadata(jid);
@@ -252,7 +220,7 @@ ${mentionList}`,
 
         if (!admins.includes(sender))
           return sock.sendMessage(jid, { 
-            text: createBox("❌ PERMISSION DENIED\nOnly admins can use this command!", "ERROR")
+            text: createStyledMessage("ERROR", "❌ Only admins can use this command!")
           });
 
         await sock.groupSettingUpdate(
@@ -264,11 +232,9 @@ ${mentionList}`,
 
         const action = command === "mute" ? "🔇 GROUP MUTED" : "🔊 GROUP UNMUTED";
         return sock.sendMessage(jid, {
-          text: createBox(
-`${action}
-Group: ${meta.subject}
-Action by: @${sender.split("@")[0]}`,
-"ADMIN ACTION"
+          text: createStyledMessage(
+            "ADMIN ACTION",
+            `${action}\nGroup: ${meta.subject}\nAction by: @${sender.split("@")[0]}`
           )
         });
       }
@@ -276,7 +242,7 @@ Action by: @${sender.split("@")[0]}`,
       // Help command fallback
       if (command === "help") {
         return sock.sendMessage(jid, {
-          text: createCommandList()
+          text: getCommandList()
         });
       }
     });
@@ -312,12 +278,6 @@ app.post("/pair", async (req, res) => {
 
 /* ===================== START ===================== */
 app.listen(PORT, () => {
-  console.log(createBox(
-`🚀 Viral-Bot Mini
-Port: ${PORT}
-Status: Initializing
-Version: 2.0.0`,
-"SYSTEM STARTUP"
-  ));
+  console.log(`🚀 Viral-Bot Mini running on port ${PORT}`);
   if (fs.existsSync("./auth/creds.json")) startWhatsApp();
 });
