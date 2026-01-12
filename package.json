@@ -2,12 +2,11 @@
   "name": "viral-bot-mini",
   "version": "1.0.0",
   "main": "index.js",
-  "type": "commonjs",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.0",
+    "@whiskeysockets/baileys": "^6.7.9",
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "pino": "^8.17.2"
