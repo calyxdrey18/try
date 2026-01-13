@@ -1,4 +1,5 @@
 
+// utils.js
 const BOT_IMAGE_URL = "https://img.sanishtech.com/u/d52d507c27a7919e9e19448a073ba4cb.jpg";
 const CHANNEL_NAME = "Viral-Bot Mini Updates";
 const CHANNEL_LINK = "https://whatsapp.com/channel/0029VbCGIzTJkK7C0wtGy31s";
@@ -79,7 +80,7 @@ ${CHANNEL_LINK}`;
 
 function getBotInfo() {
   return createStyledMessage("BOT INFORMATION",
-    `Version: 2.2.0
+    `Version: 2.3.0
 Status: ONLINE
 Developer: Calyx Drey 
 Platform: Node.js + Baileys
@@ -118,6 +119,29 @@ Support: Available 24/7
 Thank you for using Viral-Bot Mini! 🥰`);
 }
 
+// Helper function to extract quoted message
+function getQuotedMessage(m) {
+  if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
+    return m.message.extendedTextMessage.contextInfo.quotedMessage;
+  }
+  return null;
+}
+
+// Helper function to get quoted participant
+function getQuotedParticipant(m) {
+  if (m.message?.extendedTextMessage?.contextInfo?.participant) {
+    return m.message.extendedTextMessage.contextInfo.participant;
+  }
+  return null;
+}
+
+// Helper function to get message type
+function getMessageType(m) {
+  const msg = m.message || m;
+  const type = Object.keys(msg)[0];
+  return type;
+}
+
 module.exports = {
   BOT_IMAGE_URL,
   CHANNEL_NAME,
@@ -128,5 +152,8 @@ module.exports = {
   createStyledMessage,
   getCommandList,
   getBotInfo,
-  getAbout
+  getAbout,
+  getQuotedMessage,
+  getQuotedParticipant,
+  getMessageType
 };

@@ -9,8 +9,14 @@ const {
   createStyledMessage, 
   getCommandList,
   getBotInfo,
-  getAbout
+  getAbout,
+  getQuotedMessage,
+  getQuotedParticipant,
+  getMessageType
 } = require('./utils');
+
+const fs = require('fs');
+const path = require('path');
 
 class CommandHandler {
   constructor(sock) {
@@ -67,6 +73,22 @@ class CommandHandler {
     }
   }
 
+  // Helper function to send message
+  async sendReply(jid, content, originalMessage, options = {}) {
+    try {
+      return await this.sock.sendMessage(jid, {
+        ...content,
+        contextInfo: getNewsletterContext()
+      }, { 
+        quoted: originalMessage,
+        ...options 
+      });
+    } catch (error) {
+      console.error("Error sending message:", error);
+      throw error;
+    }
+  }
+
   async handleMessage(m) {
     const jid = m.key.remoteJid;
     if (jid === "status@broadcast") return;
@@ -95,25 +117,20 @@ class CommandHandler {
       const btn = m.message.buttonsResponseMessage.selectedButtonId;
       if (btn === "open_channel") {
         await this.simulateTyping(jid, 1500);
-        return this.sock.sendMessage(jid, {
-          text: `📢 *${CHANNEL_NAME}*\n\nFollow our WhatsApp Channel:\n${CHANNEL_LINK}`,
-          contextInfo: getNewsletterContext()
-        });
+        return this.sendReply(jid, {
+          text: `📢 *${CHANNEL_NAME}*\n\nFollow our WhatsApp Channel:\n${CHANNEL_LINK}`
+        }, m);
       }
     }
 
     // Extract text from message
-    const type = Object.keys(m.message)[0];
+    const type = getMessageType(m);
     let text = "";
-    let quotedMessage = null;
-    let quotedParticipant = null;
     
     if (type === "conversation") {
       text = m.message.conversation;
     } else if (type === "extendedTextMessage") {
       text = m.message.extendedTextMessage.text;
-      quotedMessage = m.message.extendedTextMessage.contextInfo?.quotedMessage;
-      quotedParticipant = m.message.extendedTextMessage.contextInfo?.participant;
     } else if (type === "imageMessage" && m.message.imageMessage.caption) {
       text = m.message.imageMessage.caption;
     } else if (type === "videoMessage" && m.message.videoMessage.caption) {
@@ -135,16 +152,9 @@ class CommandHandler {
     const args = text.slice(1).trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
-    // Get target users - prefer quoted message, then mentioned users
-    let targetUsers = [];
-    
-    if (quotedParticipant) {
-      // Use quoted participant
-      targetUsers = [quotedParticipant];
-    } else {
-      // Get mentioned users
-      targetUsers = m.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
-    }
+    // Get quoted participant for reply-based commands
+    const quotedParticipant = getQuotedParticipant(m);
+    const targetUsers = quotedParticipant ? [quotedParticipant] : [];
 
     this.stats.commandsExecuted++;
 
@@ -181,11 +191,11 @@ class CommandHandler {
       case 'welcome':
         return this.handleWelcome(jid, isGroup, sender, m);
       case 'promote':
-        return this.handlePromote(jid, isGroup, sender, targetUsers, m, quotedMessage);
+        return this.handlePromote(jid, isGroup, sender, targetUsers, m);
       case 'demote':
-        return this.handleDemote(jid, isGroup, sender, targetUsers, m, quotedMessage);
+        return this.handleDemote(jid, isGroup, sender, targetUsers, m);
       case 'kick':
-        return this.handleKick(jid, isGroup, sender, targetUsers, m, quotedMessage);
+        return this.handleKick(jid, isGroup, sender, targetUsers, m);
       case 'setdesc':
         return this.handleSetDesc(jid, isGroup, sender, args.slice(1).join(" "), m);
       case 'antilink':
@@ -214,13 +224,12 @@ class CommandHandler {
 
   async handleUnknownCommand(jid, originalMessage) {
     await this.simulateTyping(jid, 1000);
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("UNKNOWN COMMAND", 
         `Command not recognized.
         
-Type *.help* to see available commands.`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Type *.help* to see available commands.`)
+    }, originalMessage);
   }
 
   async checkAntiFeatures(jid, m) {
@@ -237,14 +246,14 @@ Type *.help* to see available commands.`),
     
     if (settings.antilink && hasLink && !m.key.fromMe) {
       try {
+        const participant = m.key.participant || jid;
         // Send warning and delete message
-        await this.sock.sendMessage(jid, {
+        await this.sendReply(jid, {
           text: createStyledMessage("ANTI-LINK", 
             `⚠️ Links are not allowed in this group!
-Message from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
+Message from @${participant.split('@')[0] || 'User'} deleted.`),
+          mentions: [participant]
+        }, m);
         
         // Delete the message containing link
         await this.sock.sendMessage(jid, { delete: m.key });
@@ -256,13 +265,13 @@ Message from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
     // Check for stickers
     if (settings.antisticker && m.message.stickerMessage && !m.key.fromMe) {
       try {
-        await this.sock.sendMessage(jid, {
+        const participant = m.key.participant || jid;
+        await this.sendReply(jid, {
           text: createStyledMessage("ANTI-STICKER", 
             `⚠️ Stickers are not allowed in this group!
-Sticker from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
+Sticker from @${participant.split('@')[0] || 'User'} deleted.`),
+          mentions: [participant]
+        }, m);
         
         await this.sock.sendMessage(jid, { delete: m.key });
       } catch (error) {
@@ -273,13 +282,13 @@ Sticker from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
     // Check for audio
     if (settings.antiaudio && m.message.audioMessage && !m.key.fromMe) {
       try {
-        await this.sock.sendMessage(jid, {
+        const participant = m.key.participant || jid;
+        await this.sendReply(jid, {
           text: createStyledMessage("ANTI-AUDIO", 
             `⚠️ Audio messages are not allowed in this group!
-Audio from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
+Audio from @${participant.split('@')[0] || 'User'} deleted.`),
+          mentions: [participant]
+        }, m);
         
         await this.sock.sendMessage(jid, { delete: m.key });
       } catch (error) {
@@ -290,13 +299,13 @@ Audio from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
     // Check for video
     if (settings.antivideo && m.message.videoMessage && !m.key.fromMe) {
       try {
-        await this.sock.sendMessage(jid, {
+        const participant = m.key.participant || jid;
+        await this.sendReply(jid, {
           text: createStyledMessage("ANTI-VIDEO", 
             `⚠️ Videos are not allowed in this group!
-Video from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
+Video from @${participant.split('@')[0] || 'User'} deleted.`),
+          mentions: [participant]
+        }, m);
         
         await this.sock.sendMessage(jid, { delete: m.key });
       } catch (error) {
@@ -307,13 +316,13 @@ Video from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
     // Check for view once
     if (settings.antiviewonce && (m.message.viewOnceMessage || m.message.viewOnceMessageV2) && !m.key.fromMe) {
       try {
-        await this.sock.sendMessage(jid, {
+        const participant = m.key.participant || jid;
+        await this.sendReply(jid, {
           text: createStyledMessage("ANTI-VIEWONCE", 
             `⚠️ View-once messages are not allowed in this group!
-Message from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
+Message from @${participant.split('@')[0] || 'User'} deleted.`),
+          mentions: [participant]
+        }, m);
         
         await this.sock.sendMessage(jid, { delete: m.key });
       } catch (error) {
@@ -324,13 +333,13 @@ Message from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
     // Check for image
     if (settings.antiimage && m.message.imageMessage && !m.key.fromMe) {
       try {
-        await this.sock.sendMessage(jid, {
+        const participant = m.key.participant || jid;
+        await this.sendReply(jid, {
           text: createStyledMessage("ANTI-IMAGE", 
             `⚠️ Images are not allowed in this group!
-Image from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
+Image from @${participant.split('@')[0] || 'User'} deleted.`),
+          mentions: [participant]
+        }, m);
         
         await this.sock.sendMessage(jid, { delete: m.key });
       } catch (error) {
@@ -341,13 +350,13 @@ Image from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
     // Check for document/file
     if (settings.antifile && m.message.documentMessage && !m.key.fromMe) {
       try {
-        await this.sock.sendMessage(jid, {
+        const participant = m.key.participant || jid;
+        await this.sendReply(jid, {
           text: createStyledMessage("ANTI-FILE", 
             `⚠️ Files/Documents are not allowed in this group!
-File from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
+File from @${participant.split('@')[0] || 'User'} deleted.`),
+          mentions: [participant]
+        }, m);
         
         await this.sock.sendMessage(jid, { delete: m.key });
       } catch (error) {
@@ -363,28 +372,26 @@ File from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
       
       const botImage = getBotImage();
       
-      return await this.sock.sendMessage(jid, {
+      return await this.sendReply(jid, {
         image: { url: botImage.url },
         caption: createStyledMessage("SYSTEM STATUS", 
           `Viral-Bot Mini is Alive & Running
 Status: ONLINE
 Uptime: 100%
-Version: 2.2.0
-Commands: 25+ Active`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+Version: 2.3.0
+Commands: 25+ Active`)
+      }, originalMessage);
     } catch (error) {
       console.error("Error sending alive message:", error);
       // Fallback to text if image fails
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("SYSTEM STATUS", 
           `Viral-Bot Mini is Alive & Running ✅
 Status: ONLINE
 Uptime: 100%
-Version: 2.2.0
-Commands: 25+ Active`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+Version: 2.3.0
+Commands: 25+ Active`)
+      }, originalMessage);
     }
   }
 
@@ -395,7 +402,7 @@ Commands: 25+ Active`),
       
       const botImage = getBotImage();
       
-      return await this.sock.sendMessage(jid, {
+      return await this.sendReply(jid, {
         image: { url: botImage.url },
         caption: getCommandList(),
         buttons: [{
@@ -403,16 +410,14 @@ Commands: 25+ Active`),
           buttonText: { displayText: "📢 View Channel" },
           type: 1
         }],
-        headerType: 1,
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+        headerType: 1
+      }, originalMessage);
     } catch (error) {
       console.error("Error sending menu:", error);
       // Fallback to text if image fails
-      return this.sock.sendMessage(jid, {
-        text: getCommandList(),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: getCommandList()
+      }, originalMessage);
     }
   }
 
@@ -427,30 +432,27 @@ Commands: 25+ Active`),
     // Simulate more typing
     await this.simulateTyping(jid, 800);
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("PING TEST", 
         `PONG! 🏓
 Latency: ${latency}ms
 Status: Optimal
-Server: Active`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Server: Active`)
+    }, originalMessage);
   }
 
   async handleHelp(jid, originalMessage) {
     await this.simulateTyping(jid, 1500);
-    return this.sock.sendMessage(jid, {
-      text: getCommandList(),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+    return this.sendReply(jid, {
+      text: getCommandList()
+    }, originalMessage);
   }
 
   async handleInfo(jid, originalMessage) {
     await this.simulateTyping(jid, 1200);
-    return this.sock.sendMessage(jid, {
-      text: getBotInfo(),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+    return this.sendReply(jid, {
+      text: getBotInfo()
+    }, originalMessage);
   }
 
   async handleStats(jid, originalMessage) {
@@ -458,7 +460,7 @@ Server: Active`),
     const groups = await this.sock.groupFetchAllParticipating();
     const groupCount = Object.keys(groups).length;
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("BOT STATISTICS",
         `Commands Executed: ${this.stats.commandsExecuted}
 Messages Processed: ${this.stats.messagesProcessed}
@@ -471,25 +473,22 @@ Success Rate: 99.9%
 Memory Usage: Optimized
 
 Last Updated
-${new Date().toLocaleString()}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+${new Date().toLocaleString()}`)
+    }, originalMessage);
   }
 
   async handleAbout(jid, originalMessage) {
     await this.simulateTyping(jid, 1800);
-    return this.sock.sendMessage(jid, {
-      text: getAbout(),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+    return this.sendReply(jid, {
+      text: getAbout()
+    }, originalMessage);
   }
 
   async handleTagAll(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 3000);
@@ -497,23 +496,21 @@ ${new Date().toLocaleString()}`),
     const mentions = meta.participants.map(p => p.id);
     const mentionList = mentions.map(u => `@${u.split("@")[0]}`).join("\n│➽ ");
 
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("GROUP ACTION",
         `TAG ALL MEMBERS
 Total: ${mentions.length} members
 
 ${mentionList}`),
-      mentions,
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+      mentions
+    }, originalMessage);
   }
 
   async handleMute(jid, isGroup, sender, shouldMute, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -522,10 +519,9 @@ ${mentionList}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can use this command!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can use this command!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1500);
@@ -535,21 +531,19 @@ ${mentionList}`),
     );
 
     const action = shouldMute ? "GROUP MUTED" : "GROUP UNMUTED";
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("ADMIN ACTION",
         `${action}
 Group: ${meta.subject}
-Action by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Action by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
   async handleWelcome(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1200);
@@ -560,21 +554,19 @@ Action by: @${sender.split("@")[0]}`),
     this.groupSettings.set(jid, settings);
 
     const status = settings.welcome ? "ENABLED ✅" : "DISABLED ❌";
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("WELCOME SETTINGS",
         `Welcome messages have been ${status}
 Group: ${jid.split("@")[0]}
-Changed by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
-  async handlePromote(jid, isGroup, sender, targetUsers, originalMessage, quotedMessage) {
+  async handlePromote(jid, isGroup, sender, targetUsers, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -583,14 +575,13 @@ Changed by: @${sender.split("@")[0]}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can promote users!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can promote users!")
+      }, originalMessage);
     }
 
     if (targetUsers.length === 0) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("USAGE", 
           `Usage: .promote @user
 OR
@@ -598,9 +589,8 @@ Reply to a message with .promote
 
 Example:
 - .promote @username
-- Reply to user's message with .promote`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+- Reply to user's message with .promote`)
+      }, originalMessage);
     }
 
     const userToPromote = targetUsers[0];
@@ -608,41 +598,37 @@ Example:
     // Check if user is already admin
     const isAlreadyAdmin = admins.includes(userToPromote);
     if (isAlreadyAdmin) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("INFO", 
           `User is already an admin!
 User: @${userToPromote.split("@")[0]}`),
-        mentions: [userToPromote],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+        mentions: [userToPromote]
+      }, originalMessage);
     }
     
     try {
       await this.simulateTyping(jid, 1800);
       await this.sock.groupParticipantsUpdate(jid, [userToPromote], "promote");
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("PROMOTION SUCCESS",
           `User promoted to admin!
 User: @${userToPromote.split("@")[0]}
 Promoted by: @${sender.split("@")[0]}`),
-        mentions: [userToPromote, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+        mentions: [userToPromote, sender]
+      }, originalMessage);
     } catch (error) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("ERROR", `Failed to promote user:
-${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+${error.message}`)
+      }, originalMessage);
     }
   }
 
-  async handleDemote(jid, isGroup, sender, targetUsers, originalMessage, quotedMessage) {
+  async handleDemote(jid, isGroup, sender, targetUsers, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -651,14 +637,13 @@ ${error.message}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can demote users!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can demote users!")
+      }, originalMessage);
     }
 
     if (targetUsers.length === 0) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("USAGE", 
           `Usage: .demote @user
 OR
@@ -666,9 +651,8 @@ Reply to a message with .demote
 
 Example:
 - .demote @username
-- Reply to user's message with .demote`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+- Reply to user's message with .demote`)
+      }, originalMessage);
     }
 
     const userToDemote = targetUsers[0];
@@ -676,51 +660,46 @@ Example:
     // Check if user is not an admin
     const isAdmin = admins.includes(userToDemote);
     if (!isAdmin) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("INFO", 
           `User is not an admin!
 User: @${userToDemote.split("@")[0]}`),
-        mentions: [userToDemote],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+        mentions: [userToDemote]
+      }, originalMessage);
     }
     
     // Prevent demoting yourself if you're the only admin
     if (userToDemote === sender && admins.length === 1) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("ERROR", 
           `You cannot demote yourself as the only admin!
-Promote someone else first.`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+Promote someone else first.`)
+      }, originalMessage);
     }
     
     try {
       await this.simulateTyping(jid, 1800);
       await this.sock.groupParticipantsUpdate(jid, [userToDemote], "demote");
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("DEMOTION SUCCESS",
           `User demoted from admin!
 User: @${userToDemote.split("@")[0]}
 Demoted by: @${sender.split("@")[0]}`),
-        mentions: [userToDemote, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+        mentions: [userToDemote, sender]
+      }, originalMessage);
     } catch (error) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("ERROR", `Failed to demote user:
-${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+${error.message}`)
+      }, originalMessage);
     }
   }
 
-  async handleKick(jid, isGroup, sender, targetUsers, originalMessage, quotedMessage) {
+  async handleKick(jid, isGroup, sender, targetUsers, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -729,14 +708,13 @@ ${error.message}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can kick users!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can kick users!")
+      }, originalMessage);
     }
 
     if (targetUsers.length === 0) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("USAGE", 
           `Usage: .kick @user
 OR
@@ -744,58 +722,52 @@ Reply to a message with .kick
 
 Example:
 - .kick @username
-- Reply to user's message with .kick`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+- Reply to user's message with .kick`)
+      }, originalMessage);
     }
 
     const userToKick = targetUsers[0];
     
     // Prevent kicking yourself
     if (userToKick === sender) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "You cannot kick yourself!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "You cannot kick yourself!")
+      }, originalMessage);
     }
     
     // Prevent kicking other admins
     if (admins.includes(userToKick)) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("ERROR", 
           `You cannot kick another admin!
 Use .demote @${userToKick.split("@")[0]} first.`),
-        mentions: [userToKick],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+        mentions: [userToKick]
+      }, originalMessage);
     }
     
     try {
       await this.simulateTyping(jid, 2200);
       await this.sock.groupParticipantsUpdate(jid, [userToKick], "remove");
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("USER KICKED",
           `User has been kicked!
 User: @${userToKick.split("@")[0]}
 Kicked by: @${sender.split("@")[0]}`),
-        mentions: [userToKick, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+        mentions: [userToKick, sender]
+      }, originalMessage);
     } catch (error) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("ERROR", `Failed to kick user:
-${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+${error.message}`)
+      }, originalMessage);
     }
   }
 
   async handleSetDesc(jid, isGroup, sender, description, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -804,45 +776,40 @@ ${error.message}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change group description!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change group description!")
+      }, originalMessage);
     }
 
     if (!description) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("USAGE", `Usage: .setdesc [new description]
-Example: .setdesc Welcome to our group!`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+Example: .setdesc Welcome to our group!`)
+      }, originalMessage);
     }
 
     try {
       await this.simulateTyping(jid, 1500);
       await this.sock.groupUpdateDescription(jid, description);
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("DESCRIPTION UPDATED",
           `Group description updated!
 New Description: ${description}
-Changed by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+      }, originalMessage);
     } catch (error) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("ERROR", `Failed to update description:
-${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+${error.message}`)
+      }, originalMessage);
     }
   }
 
   async handleSetPP(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -851,25 +818,24 @@ ${error.message}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change group profile picture!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change group profile picture!")
+      }, originalMessage);
     }
 
-    // Check if the message contains an image
+    // Check if the message contains an image or quoted image
+    const quotedMessage = getQuotedMessage(originalMessage);
     const hasImage = originalMessage.message?.imageMessage || 
-                    (originalMessage.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage);
+                    (quotedMessage?.imageMessage);
 
     if (!hasImage) {
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("USAGE", `Usage: Send an image with caption .setpp
 OR
 Reply to an image with .setpp
 
-Example: Send an image, then reply to it with .setpp`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+Example: Send an image, then reply to it with .setpp`)
+      }, originalMessage);
     }
 
     try {
@@ -880,12 +846,13 @@ Example: Send an image, then reply to it with .setpp`),
       if (originalMessage.message?.imageMessage) {
         // Direct image
         imageBuffer = await this.sock.downloadMediaMessage(originalMessage);
-      } else if (originalMessage.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage) {
-        // Quoted image
-        imageBuffer = await this.sock.downloadMediaMessage({
+      } else if (quotedMessage?.imageMessage) {
+        // Quoted image - create a mock message for download
+        const mockMessage = {
           key: originalMessage.key,
-          message: originalMessage.message.extendedTextMessage.contextInfo.quotedMessage
-        });
+          message: { imageMessage: quotedMessage.imageMessage }
+        };
+        imageBuffer = await this.sock.downloadMediaMessage(mockMessage);
       }
       
       if (!imageBuffer) {
@@ -895,28 +862,25 @@ Example: Send an image, then reply to it with .setpp`),
       // Update group profile picture
       await this.sock.updateProfilePicture(jid, imageBuffer);
       
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("PROFILE PICTURE UPDATED",
           `Group profile picture updated successfully!
-Changed by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+      }, originalMessage);
     } catch (error) {
       console.error("Error updating profile picture:", error);
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("ERROR", `Failed to update profile picture:
-${error.message || "Unknown error"}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+${error.message || "Unknown error"}`)
+      }, originalMessage);
     }
   }
 
   async handleAntiLink(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -925,10 +889,9 @@ ${error.message || "Unknown error"}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change anti-link settings!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change anti-link settings!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1200);
@@ -941,21 +904,19 @@ ${error.message || "Unknown error"}`),
     const status = settings.antilink ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antilink ? "will be automatically deleted" : "are now allowed";
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("ANTI-LINK SETTINGS",
         `Anti-link protection has been ${status}
 Links ${action} in this group.
-Changed by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
   async handleAntiSticker(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -964,10 +925,9 @@ Changed by: @${sender.split("@")[0]}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change anti-sticker settings!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change anti-sticker settings!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1200);
@@ -980,21 +940,19 @@ Changed by: @${sender.split("@")[0]}`),
     const status = settings.antisticker ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antisticker ? "will be automatically deleted" : "are now allowed";
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("ANTI-STICKER SETTINGS",
         `Anti-sticker protection has been ${status}
 Stickers ${action} in this group.
-Changed by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
   async handleAntiAudio(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -1003,10 +961,9 @@ Changed by: @${sender.split("@")[0]}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change anti-audio settings!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change anti-audio settings!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1200);
@@ -1019,21 +976,19 @@ Changed by: @${sender.split("@")[0]}`),
     const status = settings.antiaudio ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antiaudio ? "will be automatically deleted" : "are now allowed";
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("ANTI-AUDIO SETTINGS",
         `Anti-audio protection has been ${status}
 Audio messages ${action} in this group.
-Changed by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
   async handleAntiVideo(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -1042,10 +997,9 @@ Changed by: @${sender.split("@")[0]}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change anti-video settings!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change anti-video settings!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1200);
@@ -1058,21 +1012,19 @@ Changed by: @${sender.split("@")[0]}`),
     const status = settings.antivideo ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antivideo ? "will be automatically deleted" : "are now allowed";
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("ANTI-VIDEO SETTINGS",
         `Anti-video protection has been ${status}
 Videos ${action} in this group.
-Changed by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
   async handleAntiViewOnce(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -1081,10 +1033,9 @@ Changed by: @${sender.split("@")[0]}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change anti-viewonce settings!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change anti-viewonce settings!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1200);
@@ -1097,21 +1048,19 @@ Changed by: @${sender.split("@")[0]}`),
     const status = settings.antiviewonce ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antiviewonce ? "will be automatically deleted" : "are now allowed";
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("ANTI-VIEWONCE SETTINGS",
         `Anti-viewonce protection has been ${status}
 View-once messages ${action} in this group.
-Changed by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
   async handleAntiImage(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -1120,10 +1069,9 @@ Changed by: @${sender.split("@")[0]}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change anti-image settings!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change anti-image settings!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1200);
@@ -1136,21 +1084,19 @@ Changed by: @${sender.split("@")[0]}`),
     const status = settings.antiimage ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antiimage ? "will be automatically deleted" : "are now allowed";
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("ANTI-IMAGE SETTINGS",
         `Anti-image protection has been ${status}
 Images ${action} in this group.
-Changed by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
   async handleAntiFile(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "This command only works in groups!")
+      }, originalMessage);
     }
 
     const meta = await this.sock.groupMetadata(jid);
@@ -1159,10 +1105,9 @@ Changed by: @${sender.split("@")[0]}`),
       .map(p => p.id);
 
     if (!admins.includes(sender)) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "Only admins can change anti-file settings!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      return this.sendReply(jid, {
+        text: createStyledMessage("ERROR", "Only admins can change anti-file settings!")
+      }, originalMessage);
     }
 
     await this.simulateTyping(jid, 1200);
@@ -1175,130 +1120,188 @@ Changed by: @${sender.split("@")[0]}`),
     const status = settings.antifile ? "ENABLED ✅" : "DISABLED ❌";
     const action = settings.antifile ? "will be automatically deleted" : "are now allowed";
     
-    return this.sock.sendMessage(jid, {
+    return this.sendReply(jid, {
       text: createStyledMessage("ANTI-FILE SETTINGS",
         `Anti-file protection has been ${status}
 Files/Documents ${action} in this group.
-Changed by: @${sender.split("@")[0]}`),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+Changed by: @${sender.split("@")[0]}`)
+    }, originalMessage);
   }
 
-  // NEW: Download media command (.vv or .save)
+  // IMPROVED: Download media command (.vv or .save) based on working code
   async handleDownloadMedia(jid, sender, originalMessage) {
     try {
       await this.simulateTyping(jid, 2000);
       
-      // Check if there's a quoted message
-      const quotedMessage = originalMessage.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      // Get quoted message
+      const quotedMessage = getQuotedMessage(originalMessage);
       
       if (!quotedMessage) {
-        return this.sock.sendMessage(jid, {
+        return this.sendReply(jid, {
           text: createStyledMessage("USAGE", `Usage: Reply to a view-once/image/video/audio message with .vv or .save
 
 Example:
 - Reply to view-once with .vv
-- Reply to image with .save`),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
+- Reply to image with .save`)
+        }, originalMessage);
       }
 
-      // Check message type
-      let mediaType = "";
-      let mediaBuffer = null;
+      // Determine message type
+      const messageType = getMessageType(quotedMessage);
+      
+      let mediaType, ext, fileName;
       
       // Handle view-once messages
-      if (quotedMessage.viewOnceMessage || quotedMessage.viewOnceMessageV2) {
-        const viewOnceMsg = quotedMessage.viewOnceMessage || quotedMessage.viewOnceMessageV2;
-        const messageType = Object.keys(viewOnceMsg.message)[0];
+      if (messageType === "viewOnceMessage" || messageType === "viewOnceMessageV2") {
+        const viewOnceMsg = quotedMessage[messageType];
+        const innerType = getMessageType(viewOnceMsg.message);
         
-        if (messageType === "imageMessage") {
+        if (innerType === "imageMessage") {
           mediaType = "image";
-          mediaBuffer = await this.sock.downloadMediaMessage({
-            key: originalMessage.key,
-            message: { viewOnceMessage: { message: viewOnceMsg.message } }
-          });
-        } else if (messageType === "videoMessage") {
+          ext = "jpg";
+          fileName = `viewonce_${Date.now()}.${ext}`;
+        } else if (innerType === "videoMessage") {
           mediaType = "video";
-          mediaBuffer = await this.sock.downloadMediaMessage({
-            key: originalMessage.key,
-            message: { viewOnceMessage: { message: viewOnceMsg.message } }
-          });
+          ext = "mp4";
+          fileName = `viewonce_${Date.now()}.${ext}`;
+        } else {
+          return this.sendReply(jid, {
+            text: createStyledMessage("ERROR", "Unsupported view-once type. Only images and videos are supported.")
+          }, originalMessage);
         }
-      }
-      // Handle regular media
-      else if (quotedMessage.imageMessage) {
+        
+        // Create mock message for download
+        const mockMessage = {
+          key: originalMessage.key,
+          message: { [messageType]: viewOnceMsg }
+        };
+        
+        const buffer = await this.sock.downloadMediaMessage(mockMessage);
+        
+        if (!buffer) {
+          throw new Error("Failed to download view-once media");
+        }
+        
+        // Save to file
+        fs.writeFileSync(fileName, buffer);
+        
+        // Send the media
+        let mediaMessage = {};
+        if (mediaType === "image") {
+          mediaMessage = { image: fs.readFileSync(fileName), caption: "📸 View-Once Image Retrieved" };
+        } else if (mediaType === "video") {
+          mediaMessage = { video: fs.readFileSync(fileName), caption: "🎥 View-Once Video Retrieved" };
+        }
+        
+        await this.sock.sendMessage(jid, mediaMessage);
+        
+        // Clean up
+        fs.unlinkSync(fileName);
+        
+      } 
+      // Handle regular media messages
+      else if (messageType === "imageMessage") {
         mediaType = "image";
-        mediaBuffer = await this.sock.downloadMediaMessage({
+        ext = "jpg";
+        fileName = `image_${Date.now()}.${ext}`;
+        
+        const mockMessage = {
           key: originalMessage.key,
           message: { imageMessage: quotedMessage.imageMessage }
+        };
+        
+        const buffer = await this.sock.downloadMediaMessage(mockMessage);
+        fs.writeFileSync(fileName, buffer);
+        
+        await this.sock.sendMessage(jid, {
+          image: fs.readFileSync(fileName),
+          caption: "📸 Downloaded Image"
         });
-      } else if (quotedMessage.videoMessage) {
+        
+        fs.unlinkSync(fileName);
+        
+      } else if (messageType === "videoMessage") {
         mediaType = "video";
-        mediaBuffer = await this.sock.downloadMediaMessage({
+        ext = "mp4";
+        fileName = `video_${Date.now()}.${ext}`;
+        
+        const mockMessage = {
           key: originalMessage.key,
           message: { videoMessage: quotedMessage.videoMessage }
+        };
+        
+        const buffer = await this.sock.downloadMediaMessage(mockMessage);
+        fs.writeFileSync(fileName, buffer);
+        
+        await this.sock.sendMessage(jid, {
+          video: fs.readFileSync(fileName),
+          caption: "🎥 Downloaded Video"
         });
-      } else if (quotedMessage.audioMessage) {
+        
+        fs.unlinkSync(fileName);
+        
+      } else if (messageType === "audioMessage") {
         mediaType = "audio";
-        mediaBuffer = await this.sock.downloadMediaMessage({
+        ext = "mp3";
+        fileName = `audio_${Date.now()}.${ext}`;
+        
+        const mockMessage = {
           key: originalMessage.key,
           message: { audioMessage: quotedMessage.audioMessage }
+        };
+        
+        const buffer = await this.sock.downloadMediaMessage(mockMessage);
+        fs.writeFileSync(fileName, buffer);
+        
+        await this.sock.sendMessage(jid, {
+          audio: fs.readFileSync(fileName),
+          mimetype: 'audio/mp4',
+          ptt: false
         });
-      } else if (quotedMessage.documentMessage) {
+        
+        fs.unlinkSync(fileName);
+        
+      } else if (messageType === "documentMessage") {
         mediaType = "document";
-        mediaBuffer = await this.sock.downloadMediaMessage({
+        ext = quotedMessage.documentMessage.fileName?.split('.').pop() || 'bin';
+        fileName = quotedMessage.documentMessage.fileName || `document_${Date.now()}.${ext}`;
+        
+        const mockMessage = {
           key: originalMessage.key,
           message: { documentMessage: quotedMessage.documentMessage }
+        };
+        
+        const buffer = await this.sock.downloadMediaMessage(mockMessage);
+        fs.writeFileSync(fileName, buffer);
+        
+        await this.sock.sendMessage(jid, {
+          document: fs.readFileSync(fileName),
+          fileName: fileName,
+          mimetype: quotedMessage.documentMessage.mimetype || 'application/octet-stream'
         });
+        
+        fs.unlinkSync(fileName);
+        
+      } else {
+        return this.sendReply(jid, {
+          text: createStyledMessage("ERROR", "Unsupported media type. Please reply to an image, video, audio, or document message.")
+        }, originalMessage);
       }
 
-      if (!mediaBuffer || !mediaType) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "No downloadable media found in the quoted message!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      // Send the downloaded media back to user
-      let mediaMessage = {};
-      
-      switch(mediaType) {
-        case "image":
-          mediaMessage = { image: mediaBuffer, caption: "📸 Downloaded Image" };
-          break;
-        case "video":
-          mediaMessage = { video: mediaBuffer, caption: "🎥 Downloaded Video" };
-          break;
-        case "audio":
-          mediaMessage = { audio: mediaBuffer, mimetype: 'audio/mp4' };
-          break;
-        case "document":
-          mediaMessage = { 
-            document: mediaBuffer, 
-            mimetype: quotedMessage.documentMessage.mimetype || 'application/octet-stream',
-            fileName: quotedMessage.documentMessage.fileName || 'downloaded_file'
-          };
-          break;
-      }
-
-      await this.sock.sendMessage(jid, mediaMessage);
-      
-      return this.sock.sendMessage(jid, {
+      // Send success message
+      return this.sendReply(jid, {
         text: createStyledMessage("MEDIA DOWNLOADED",
           `✅ Media downloaded successfully!
 Type: ${mediaType.toUpperCase()}
-Sent to your chat.`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+Sent to chat.`)
+      }, originalMessage);
 
     } catch (error) {
       console.error("Error downloading media:", error);
-      return this.sock.sendMessage(jid, {
+      return this.sendReply(jid, {
         text: createStyledMessage("ERROR", `Failed to download media:
-${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+${error.message}`)
+      }, originalMessage);
     }
   }
 }
