@@ -1,9 +1,10 @@
-
+// commands.js
 const { 
   BOT_IMAGE_URL, 
   CHANNEL_NAME, 
   CHANNEL_LINK, 
   NEWSLETTER_JID,
+  getBotImage,
   getNewsletterContext,
   createStyledMessage, 
   getCommandList,
@@ -23,32 +24,46 @@ class CommandHandler {
     this.typingStates = new Map();
   }
 
-  // Improved typing simulation with proper async handling
+  // Improved typing simulation
   async simulateTyping(jid, duration = 1000) {
     try {
-      // Only send typing if not already typing
-      if (!this.typingStates.has(jid)) {
-        this.typingStates.set(jid, true);
-        
-        // Start typing
-        await this.sock.sendPresenceUpdate('composing', jid);
-        
-        // Set timeout to stop typing
-        setTimeout(async () => {
-          try {
-            await this.sock.sendPresenceUpdate('paused', jid);
-            this.typingStates.delete(jid);
-          } catch (error) {
-            console.error("Error stopping typing:", error);
-          }
-        }, Math.min(duration, 60000)); // Max 60 seconds
-        
-        // Add some randomness for human-like behavior
-        const randomDelay = Math.random() * 500 + 300;
-        await new Promise(resolve => setTimeout(resolve, randomDelay));
+      // Clear any existing typing state
+      if (this.typingStates.has(jid)) {
+        clearTimeout(this.typingStates.get(jid).timeout);
       }
+      
+      // Start typing
+      await this.sock.sendPresenceUpdate('composing', jid);
+      
+      // Set timeout to stop typing
+      const timeout = setTimeout(async () => {
+        try {
+          await this.sock.sendPresenceUpdate('paused', jid);
+          this.typingStates.delete(jid);
+        } catch (error) {
+          console.error("Error stopping typing:", error);
+        }
+      }, duration);
+      
+      // Store timeout reference
+      this.typingStates.set(jid, { timeout, active: true });
+      
     } catch (error) {
       console.error("Error simulating typing:", error);
+    }
+  }
+
+  // Stop typing
+  async stopTyping(jid) {
+    try {
+      if (this.typingStates.has(jid)) {
+        const { timeout } = this.typingStates.get(jid);
+        clearTimeout(timeout);
+        await this.sock.sendPresenceUpdate('paused', jid);
+        this.typingStates.delete(jid);
+      }
+    } catch (error) {
+      console.error("Error stopping typing:", error);
     }
   }
 
@@ -91,12 +106,14 @@ class CommandHandler {
     const type = Object.keys(m.message)[0];
     let text = "";
     let quotedMessage = null;
+    let quotedParticipant = null;
     
     if (type === "conversation") {
       text = m.message.conversation;
     } else if (type === "extendedTextMessage") {
       text = m.message.extendedTextMessage.text;
       quotedMessage = m.message.extendedTextMessage.contextInfo?.quotedMessage;
+      quotedParticipant = m.message.extendedTextMessage.contextInfo?.participant;
     } else if (type === "imageMessage" && m.message.imageMessage.caption) {
       text = m.message.imageMessage.caption;
     } else if (type === "videoMessage" && m.message.videoMessage.caption) {
@@ -118,15 +135,12 @@ class CommandHandler {
     const args = text.slice(1).trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
-    // Get mentioned users OR get user from quoted message
+    // Get target users - prefer quoted message, then mentioned users
     let targetUsers = [];
     
-    if (quotedMessage) {
-      // Get user from quoted message
-      const quotedParticipant = m.message.extendedTextMessage.contextInfo?.participant;
-      if (quotedParticipant) {
-        targetUsers = [quotedParticipant];
-      }
+    if (quotedParticipant) {
+      // Use quoted participant
+      targetUsers = [quotedParticipant];
     } else {
       // Get mentioned users
       targetUsers = m.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -134,7 +148,7 @@ class CommandHandler {
 
     this.stats.commandsExecuted++;
 
-    // Simulate typing before response with random duration
+    // Simulate typing before response
     const typingDuration = Math.random() * 1500 + 800;
     await this.simulateTyping(jid, typingDuration);
 
@@ -167,11 +181,11 @@ class CommandHandler {
       case 'welcome':
         return this.handleWelcome(jid, isGroup, sender, m);
       case 'promote':
-        return this.handlePromote(jid, isGroup, sender, targetUsers, m);
+        return this.handlePromote(jid, isGroup, sender, targetUsers, m, quotedMessage);
       case 'demote':
-        return this.handleDemote(jid, isGroup, sender, targetUsers, m);
+        return this.handleDemote(jid, isGroup, sender, targetUsers, m, quotedMessage);
       case 'kick':
-        return this.handleKick(jid, isGroup, sender, targetUsers, m);
+        return this.handleKick(jid, isGroup, sender, targetUsers, m, quotedMessage);
       case 'setdesc':
         return this.handleSetDesc(jid, isGroup, sender, args.slice(1).join(" "), m);
       case 'antilink':
@@ -190,6 +204,9 @@ class CommandHandler {
         return this.handleAntiFile(jid, isGroup, sender, m);
       case 'setpp':
         return this.handleSetPP(jid, isGroup, sender, m);
+      case 'vv':
+      case 'save':
+        return this.handleDownloadMedia(jid, sender, m);
       default:
         return this.handleUnknownCommand(jid, m);
     }
@@ -215,8 +232,8 @@ Type *.help* to see available commands.`),
                  m.message.extendedTextMessage?.text || 
                  m.message.imageMessage?.caption || "";
     
-    // Check for links
-    const hasLink = /(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+)/.test(text);
+    // Check for links (including shortened URLs)
+    const hasLink = /(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+|bit\.ly\/[^\s]+|t\.co\/[^\s]+|goo\.gl\/[^\s]+)/i.test(text);
     
     if (settings.antilink && hasLink && !m.key.fromMe) {
       try {
@@ -344,13 +361,15 @@ File from @${m.key.participant?.split('@')[0] || 'User'} deleted.`),
       // Simulate longer thinking time for image commands
       await this.simulateTyping(jid, 2500);
       
+      const botImage = getBotImage();
+      
       return await this.sock.sendMessage(jid, {
-        image: { url: BOT_IMAGE_URL },
+        image: { url: botImage.url },
         caption: createStyledMessage("SYSTEM STATUS", 
           `Viral-Bot Mini is Alive & Running
 Status: ONLINE
 Uptime: 100%
-Version: 2.1.0
+Version: 2.2.0
 Commands: 25+ Active`),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
@@ -362,8 +381,36 @@ Commands: 25+ Active`),
           `Viral-Bot Mini is Alive & Running ✅
 Status: ONLINE
 Uptime: 100%
-Version: 2.1.0
+Version: 2.2.0
 Commands: 25+ Active`),
+        contextInfo: getNewsletterContext()
+      }, { quoted: originalMessage });
+    }
+  }
+
+  async handleMenu(jid, originalMessage) {
+    try {
+      // Simulate longer thinking time for menu
+      await this.simulateTyping(jid, 2000);
+      
+      const botImage = getBotImage();
+      
+      return await this.sock.sendMessage(jid, {
+        image: { url: botImage.url },
+        caption: getCommandList(),
+        buttons: [{
+          buttonId: "open_channel",
+          buttonText: { displayText: "📢 View Channel" },
+          type: 1
+        }],
+        headerType: 1,
+        contextInfo: getNewsletterContext()
+      }, { quoted: originalMessage });
+    } catch (error) {
+      console.error("Error sending menu:", error);
+      // Fallback to text if image fails
+      return this.sock.sendMessage(jid, {
+        text: getCommandList(),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
     }
@@ -388,32 +435,6 @@ Status: Optimal
 Server: Active`),
       contextInfo: getNewsletterContext()
     }, { quoted: originalMessage });
-  }
-
-  async handleMenu(jid, originalMessage) {
-    try {
-      // Simulate longer thinking time for menu
-      await this.simulateTyping(jid, 2000);
-      
-      return await this.sock.sendMessage(jid, {
-        image: { url: BOT_IMAGE_URL },
-        caption: getCommandList(),
-        buttons: [{
-          buttonId: "open_channel",
-          buttonText: { displayText: "📢 View Channel" },
-          type: 1
-        }],
-        headerType: 1,
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error sending menu:", error);
-      // Fallback to text if image fails
-      return this.sock.sendMessage(jid, {
-        text: getCommandList(),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
   }
 
   async handleHelp(jid, originalMessage) {
@@ -548,7 +569,7 @@ Changed by: @${sender.split("@")[0]}`),
     }, { quoted: originalMessage });
   }
 
-  async handlePromote(jid, isGroup, sender, targetUsers, originalMessage) {
+  async handlePromote(jid, isGroup, sender, targetUsers, originalMessage, quotedMessage) {
     if (!isGroup) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", "This command only works in groups!"),
@@ -616,7 +637,7 @@ ${error.message}`),
     }
   }
 
-  async handleDemote(jid, isGroup, sender, targetUsers, originalMessage) {
+  async handleDemote(jid, isGroup, sender, targetUsers, originalMessage, quotedMessage) {
     if (!isGroup) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", "This command only works in groups!"),
@@ -694,7 +715,7 @@ ${error.message}`),
     }
   }
 
-  async handleKick(jid, isGroup, sender, targetUsers, originalMessage) {
+  async handleKick(jid, isGroup, sender, targetUsers, originalMessage, quotedMessage) {
     if (!isGroup) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", "This command only works in groups!"),
@@ -738,7 +759,7 @@ Example:
       }, { quoted: originalMessage });
     }
     
-    // Prevent kicking other admins (unless you want to allow this)
+    // Prevent kicking other admins
     if (admins.includes(userToKick)) {
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", 
@@ -837,9 +858,14 @@ ${error.message}`),
     }
 
     // Check if the message contains an image
-    if (!originalMessage.message?.imageMessage) {
+    const hasImage = originalMessage.message?.imageMessage || 
+                    (originalMessage.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage);
+
+    if (!hasImage) {
       return this.sock.sendMessage(jid, {
-        text: createStyledMessage("USAGE", `Usage: Reply to an image with .setpp
+        text: createStyledMessage("USAGE", `Usage: Send an image with caption .setpp
+OR
+Reply to an image with .setpp
 
 Example: Send an image, then reply to it with .setpp`),
         contextInfo: getNewsletterContext()
@@ -847,23 +873,39 @@ Example: Send an image, then reply to it with .setpp`),
     }
 
     try {
-      await this.simulateTyping(jid, 2500);
+      await this.simulateTyping(jid, 3000);
+      
       // Get the image buffer
-      const imageBuffer = await this.sock.downloadMediaMessage(originalMessage);
+      let imageBuffer;
+      if (originalMessage.message?.imageMessage) {
+        // Direct image
+        imageBuffer = await this.sock.downloadMediaMessage(originalMessage);
+      } else if (originalMessage.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage) {
+        // Quoted image
+        imageBuffer = await this.sock.downloadMediaMessage({
+          key: originalMessage.key,
+          message: originalMessage.message.extendedTextMessage.contextInfo.quotedMessage
+        });
+      }
+      
+      if (!imageBuffer) {
+        throw new Error("Failed to download image");
+      }
       
       // Update group profile picture
       await this.sock.updateProfilePicture(jid, imageBuffer);
       
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("PROFILE PICTURE UPDATED",
-          `Group profile picture updated!
+          `Group profile picture updated successfully!
 Changed by: @${sender.split("@")[0]}`),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
     } catch (error) {
+      console.error("Error updating profile picture:", error);
       return this.sock.sendMessage(jid, {
         text: createStyledMessage("ERROR", `Failed to update profile picture:
-${error.message}`),
+${error.message || "Unknown error"}`),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
     }
@@ -1140,6 +1182,124 @@ Files/Documents ${action} in this group.
 Changed by: @${sender.split("@")[0]}`),
       contextInfo: getNewsletterContext()
     }, { quoted: originalMessage });
+  }
+
+  // NEW: Download media command (.vv or .save)
+  async handleDownloadMedia(jid, sender, originalMessage) {
+    try {
+      await this.simulateTyping(jid, 2000);
+      
+      // Check if there's a quoted message
+      const quotedMessage = originalMessage.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      
+      if (!quotedMessage) {
+        return this.sock.sendMessage(jid, {
+          text: createStyledMessage("USAGE", `Usage: Reply to a view-once/image/video/audio message with .vv or .save
+
+Example:
+- Reply to view-once with .vv
+- Reply to image with .save`),
+          contextInfo: getNewsletterContext()
+        }, { quoted: originalMessage });
+      }
+
+      // Check message type
+      let mediaType = "";
+      let mediaBuffer = null;
+      
+      // Handle view-once messages
+      if (quotedMessage.viewOnceMessage || quotedMessage.viewOnceMessageV2) {
+        const viewOnceMsg = quotedMessage.viewOnceMessage || quotedMessage.viewOnceMessageV2;
+        const messageType = Object.keys(viewOnceMsg.message)[0];
+        
+        if (messageType === "imageMessage") {
+          mediaType = "image";
+          mediaBuffer = await this.sock.downloadMediaMessage({
+            key: originalMessage.key,
+            message: { viewOnceMessage: { message: viewOnceMsg.message } }
+          });
+        } else if (messageType === "videoMessage") {
+          mediaType = "video";
+          mediaBuffer = await this.sock.downloadMediaMessage({
+            key: originalMessage.key,
+            message: { viewOnceMessage: { message: viewOnceMsg.message } }
+          });
+        }
+      }
+      // Handle regular media
+      else if (quotedMessage.imageMessage) {
+        mediaType = "image";
+        mediaBuffer = await this.sock.downloadMediaMessage({
+          key: originalMessage.key,
+          message: { imageMessage: quotedMessage.imageMessage }
+        });
+      } else if (quotedMessage.videoMessage) {
+        mediaType = "video";
+        mediaBuffer = await this.sock.downloadMediaMessage({
+          key: originalMessage.key,
+          message: { videoMessage: quotedMessage.videoMessage }
+        });
+      } else if (quotedMessage.audioMessage) {
+        mediaType = "audio";
+        mediaBuffer = await this.sock.downloadMediaMessage({
+          key: originalMessage.key,
+          message: { audioMessage: quotedMessage.audioMessage }
+        });
+      } else if (quotedMessage.documentMessage) {
+        mediaType = "document";
+        mediaBuffer = await this.sock.downloadMediaMessage({
+          key: originalMessage.key,
+          message: { documentMessage: quotedMessage.documentMessage }
+        });
+      }
+
+      if (!mediaBuffer || !mediaType) {
+        return this.sock.sendMessage(jid, {
+          text: createStyledMessage("ERROR", "No downloadable media found in the quoted message!"),
+          contextInfo: getNewsletterContext()
+        }, { quoted: originalMessage });
+      }
+
+      // Send the downloaded media back to user
+      let mediaMessage = {};
+      
+      switch(mediaType) {
+        case "image":
+          mediaMessage = { image: mediaBuffer, caption: "📸 Downloaded Image" };
+          break;
+        case "video":
+          mediaMessage = { video: mediaBuffer, caption: "🎥 Downloaded Video" };
+          break;
+        case "audio":
+          mediaMessage = { audio: mediaBuffer, mimetype: 'audio/mp4' };
+          break;
+        case "document":
+          mediaMessage = { 
+            document: mediaBuffer, 
+            mimetype: quotedMessage.documentMessage.mimetype || 'application/octet-stream',
+            fileName: quotedMessage.documentMessage.fileName || 'downloaded_file'
+          };
+          break;
+      }
+
+      await this.sock.sendMessage(jid, mediaMessage);
+      
+      return this.sock.sendMessage(jid, {
+        text: createStyledMessage("MEDIA DOWNLOADED",
+          `✅ Media downloaded successfully!
+Type: ${mediaType.toUpperCase()}
+Sent to your chat.`),
+        contextInfo: getNewsletterContext()
+      }, { quoted: originalMessage });
+
+    } catch (error) {
+      console.error("Error downloading media:", error);
+      return this.sock.sendMessage(jid, {
+        text: createStyledMessage("ERROR", `Failed to download media:
+${error.message}`),
+        contextInfo: getNewsletterContext()
+      }, { quoted: originalMessage });
+    }
   }
 }
 

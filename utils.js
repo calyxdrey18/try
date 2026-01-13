@@ -4,6 +4,16 @@ const CHANNEL_NAME = "Viral-Bot Mini Updates";
 const CHANNEL_LINK = "https://whatsapp.com/channel/0029VbCGIzTJkK7C0wtGy31s";
 const NEWSLETTER_JID = "120363405637529316@newsletter";
 
+// Function to ensure image URL is valid
+function getBotImage() {
+  // Fallback image in case the main one fails
+  const fallbackImage = "https://telegra.ph/file/87a3b8a3c7e7d6b3c9c9d.jpg";
+  return {
+    url: BOT_IMAGE_URL,
+    fallback: fallbackImage
+  };
+}
+
 // Newsletter forwarding context
 function getNewsletterContext() {
   return {
@@ -57,13 +67,19 @@ function getCommandList() {
 │➽ tagall
 ┗▣
 
+┏▣ ◈ *MEDIA COMMANDS* ◈
+│────────────────────────
+│➽ vv - Download view-once
+│➽ save - Save media
+┗▣
+
 📢 *Follow our channel for updates!*
 ${CHANNEL_LINK}`;
 }
 
 function getBotInfo() {
   return createStyledMessage("BOT INFORMATION",
-    `Version: 2.1.0
+    `Version: 2.2.0
 Status: ONLINE
 Developer: Calyx Drey 
 Platform: Node.js + Baileys
@@ -75,6 +91,7 @@ Anti-Spam Protection
 Media Filtering
 Admin Controls
 User Management
+Media Downloader
 
 Support: @+263786624966`);
 }
@@ -106,6 +123,7 @@ module.exports = {
   CHANNEL_NAME,
   CHANNEL_LINK,
   NEWSLETTER_JID,
+  getBotImage,
   getNewsletterContext,
   createStyledMessage,
   getCommandList,
