@@ -1,858 +1,233 @@
-// commands.js
 const { 
   BOT_IMAGE_URL, 
-  CHANNEL_NAME, 
-  CHANNEL_LINK, 
-  NEWSLETTER_JID,
-  getNewsletterContext,
-  createStyledMessage, 
+  CHANNEL_LINK,
   getCommandList,
   getBotInfo,
-  getAbout,
-  getAliveMessage,
-  getMenuMessage
+  getAbout
 } = require('./utils');
 
 class CommandHandler {
   constructor(sock) {
     this.sock = sock;
-    this.stats = {
-      commandsExecuted: 0,
-      messagesProcessed: 0,
-      groupsActive: 0
-    };
-    this.groupSettings = new Map();
-    
-    console.log("✅ CommandHandler initialized with socket");
+    this.stats = { commandsExecuted: 0, messagesProcessed: 0 };
   }
 
   async handleMessage(m) {
     try {
       const jid = m.key.remoteJid;
-      if (jid === "status@broadcast") return;
+      if (jid === 'status@broadcast' || m.key.fromMe) return;
 
       this.stats.messagesProcessed++;
 
-      const isGroup = jid.endsWith("@g.us");
-      const sender = isGroup ? m.key.participant || jid : jid;
-
-      // Initialize group settings
-      if (isGroup && !this.groupSettings.has(jid)) {
-        this.groupSettings.set(jid, {
-          welcome: true,
-          antilink: false,
-          antisticker: false,
-          antiaudio: false
-        });
-      }
-
-      // Button click handler
-      if (m.message.buttonsResponseMessage) {
-        const btn = m.message.buttonsResponseMessage.selectedButtonId;
-        if (btn === "open_channel") {
-          return this.sock.sendMessage(jid, {
-            text: `📢 *${CHANNEL_NAME}*\n\nFollow our WhatsApp Channel:\n${CHANNEL_LINK}`,
-            contextInfo: getNewsletterContext()
-          });
-        }
-      }
-
-      // Extract text from message
-      const type = Object.keys(m.message)[0];
-      let text = "";
-      let quotedMessage = null;
+      // Get message text
+      let text = '';
+      const msgType = Object.keys(m.message)[0];
       
-      if (type === "conversation") {
+      if (msgType === 'conversation') {
         text = m.message.conversation;
-      } else if (type === "extendedTextMessage") {
-        text = m.message.extendedTextMessage.text;
-        quotedMessage = m.message.extendedTextMessage.contextInfo?.quotedMessage;
-      } else if (type === "imageMessage" && m.message.imageMessage.caption) {
-        text = m.message.imageMessage.caption;
-      } else if (type === "videoMessage" && m.message.videoMessage.caption) {
-        text = m.message.videoMessage.caption;
+      } else if (msgType === 'extendedTextMessage') {
+        text = m.message.extendedTextMessage.text || '';
+      } else if (msgType === 'imageMessage') {
+        text = m.message.imageMessage.caption || '';
       }
 
-      // Check for anti-features BEFORE processing commands
-      if (isGroup) {
-        await this.checkAntiFeatures(jid, m);
-      }
+      // Check if it's a command
+      if (!text.startsWith('.')) return;
 
-      if (!text || !text.startsWith(".")) return;
-
-      // Prevent reply loops
-      const isBotEcho = m.key.fromMe && 
-        m.message.extendedTextMessage?.contextInfo?.stanzaId;
-      if (isBotEcho) return;
-
-      const args = text.slice(1).trim().split(/\s+/);
+      const args = text.slice(1).split(' ');
       const command = args[0].toLowerCase();
-      
-      // Get mentioned users OR get user from quoted message
-      let targetUsers = [];
-      
-      if (quotedMessage) {
-        // Get user from quoted message
-        const quotedParticipant = m.message.extendedTextMessage.contextInfo?.participant;
-        if (quotedParticipant) {
-          targetUsers = [quotedParticipant];
-        }
-      } else {
-        // Get mentioned users
-        targetUsers = m.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
-      }
-
       this.stats.commandsExecuted++;
-      console.log(`📝 Command received: ${command} from ${sender}`);
 
-      // Route command to appropriate handler
+      console.log(`Command: .${command}`);
+
+      // Handle commands
       switch(command) {
         case 'alive':
-          return this.handleAlive(jid, m);
+          await this.handleAlive(jid, m);
+          break;
         case 'ping':
-          return this.handlePing(jid, m);
+          await this.handlePing(jid, m);
+          break;
         case 'menu':
-          return this.handleMenu(jid, m);
-        case 'tagall':
-          return this.handleTagAll(jid, isGroup, sender, m);
-        case 'mute':
-          return this.handleMute(jid, isGroup, sender, true, m);
-        case 'unmute':
-          return this.handleMute(jid, isGroup, sender, false, m);
+          await this.handleMenu(jid, m);
+          break;
         case 'help':
-          return this.handleHelp(jid, m);
+          await this.handleHelp(jid, m);
+          break;
         case 'info':
-          return this.handleInfo(jid, m);
+          await this.handleInfo(jid, m);
+          break;
         case 'stats':
-          return this.handleStats(jid, m);
+          await this.handleStats(jid, m);
+          break;
         case 'about':
-          return this.handleAbout(jid, m);
-        case 'welcome':
-          return this.handleWelcome(jid, isGroup, sender, m);
-        case 'promote':
-          return this.handlePromote(jid, isGroup, sender, targetUsers, m);
-        case 'demote':
-          return this.handleDemote(jid, isGroup, sender, targetUsers, m);
-        case 'kick':
-          return this.handleKick(jid, isGroup, sender, targetUsers, m);
-        case 'setdesc':
-          return this.handleSetDesc(jid, isGroup, sender, args.slice(1).join(" "), m);
-        case 'antilink':
-          return this.handleAntiLink(jid, isGroup, sender, m);
-        case 'antisticker':
-          return this.handleAntiSticker(jid, isGroup, sender, m);
-        case 'antiaudio':
-          return this.handleAntiAudio(jid, isGroup, sender, m);
-        case 'setpp':
-          return this.handleSetPP(jid, isGroup, sender, m);
+          await this.handleAbout(jid, m);
+          break;
+        case 'tagall':
+          await this.handleTagAll(jid, m);
+          break;
         default:
-          // Unknown command - send help
-          return this.sock.sendMessage(jid, {
-            text: `❓ Unknown command: .${command}\n\nType .help or .menu to see available commands.`,
-            contextInfo: getNewsletterContext()
+          await this.sock.sendMessage(jid, {
+            text: `❓ Unknown command: .${command}\nType .help for commands.`
           }, { quoted: m });
       }
     } catch (error) {
-      console.error("❌ Error in handleMessage:", error);
-      return null;
-    }
-  }
-
-  async checkAntiFeatures(jid, m) {
-    const settings = this.groupSettings.get(jid);
-    if (!settings) return;
-
-    // Get message text
-    const text = m.message.conversation || 
-                 m.message.extendedTextMessage?.text || 
-                 m.message.imageMessage?.caption || "";
-    
-    // Check for links
-    const hasLink = /(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+)/.test(text);
-    
-    if (settings.antilink && hasLink && !m.key.fromMe) {
-      try {
-        // Send warning and delete message
-        await this.sock.sendMessage(jid, {
-          text: `⚠️ *Anti-Link Active*\nLinks are not allowed in this group!\nMessage from @${m.key.participant?.split('@')[0] || 'User'} deleted.`,
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
-        
-        // Delete the message containing link
-        await this.sock.sendMessage(jid, { delete: m.key });
-      } catch (error) {
-        console.error("Error deleting link message:", error);
-      }
-    }
-
-    // Check for stickers
-    if (settings.antisticker && m.message.stickerMessage && !m.key.fromMe) {
-      try {
-        await this.sock.sendMessage(jid, {
-          text: `⚠️ *Anti-Sticker Active*\nStickers are not allowed in this group!\nSticker from @${m.key.participant?.split('@')[0] || 'User'} deleted.`,
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
-        
-        await this.sock.sendMessage(jid, { delete: m.key });
-      } catch (error) {
-        console.error("Error deleting sticker:", error);
-      }
-    }
-
-    // Check for audio
-    if (settings.antiaudio && m.message.audioMessage && !m.key.fromMe) {
-      try {
-        await this.sock.sendMessage(jid, {
-          text: `⚠️ *Anti-Audio Active*\nAudio messages are not allowed in this group!\nAudio from @${m.key.participant?.split('@')[0] || 'User'} deleted.`,
-          mentions: m.key.participant ? [m.key.participant] : [],
-          contextInfo: getNewsletterContext()
-        });
-        
-        await this.sock.sendMessage(jid, { delete: m.key });
-      } catch (error) {
-        console.error("Error deleting audio:", error);
-      }
+      console.log('Command error:', error.message);
     }
   }
 
   async handleAlive(jid, originalMessage) {
     try {
-      console.log("🟢 Handling .alive command");
+      const aliveText = `✅ *Viral-Bot Mini is ALIVE!*\n\n` +
+                       `⚡ Status: ONLINE\n` +
+                       `📊 Version: 2.0.0\n` +
+                       `🚀 Commands: Active\n\n` +
+                       `Type .menu for all commands`;
       
-      // Try to send image with caption
-      const message = await this.sock.sendMessage(jid, {
-        image: { url: BOT_IMAGE_URL },
-        caption: getAliveMessage(),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      
-      console.log("✅ .alive command executed successfully");
-      return message;
+      // Try with image
+      try {
+        await this.sock.sendMessage(jid, {
+          image: { url: BOT_IMAGE_URL },
+          caption: aliveText
+        }, { quoted: originalMessage });
+      } catch (imageError) {
+        // Fallback to text
+        await this.sock.sendMessage(jid, {
+          text: aliveText
+        }, { quoted: originalMessage });
+      }
     } catch (error) {
-      console.error("❌ Error in handleAlive:", error.message);
+      console.log('Alive command error:', error.message);
+    }
+  }
+
+  async handleMenu(jid, originalMessage) {
+    try {
+      const menuText = `🤖 *Viral-Bot Mini Commands Menu*\n\n` +
+                      `📋 *General Commands:*\n` +
+                      `• .alive - Check bot status\n` +
+                      `• .ping - Test response\n` +
+                      `• .menu - Show this menu\n` +
+                      `• .help - All commands\n` +
+                      `• .info - Bot info\n` +
+                      `• .stats - Statistics\n` +
+                      `• .about - About developer\n\n` +
+                      `👑 *Group Commands:*\n` +
+                      `• .tagall - Mention everyone\n` +
+                      `• .promote - Make admin\n` +
+                      `• .demote - Remove admin\n` +
+                      `• .kick - Remove member\n` +
+                      `• .mute - Close group\n` +
+                      `• .unmute - Open group\n\n` +
+                      `📢 *Channel:* ${CHANNEL_LINK}`;
       
-      // Fallback to text only
-      return this.sock.sendMessage(jid, {
-        text: getAliveMessage(),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      // Try with image
+      try {
+        await this.sock.sendMessage(jid, {
+          image: { url: BOT_IMAGE_URL },
+          caption: menuText
+        }, { quoted: originalMessage });
+      } catch (imageError) {
+        // Fallback to text
+        await this.sock.sendMessage(jid, {
+          text: menuText
+        }, { quoted: originalMessage });
+      }
+    } catch (error) {
+      console.log('Menu command error:', error.message);
     }
   }
 
   async handlePing(jid, originalMessage) {
     try {
       const start = Date.now();
-      const pingMsg = await this.sock.sendMessage(jid, {
-        text: "🏓 Pinging...",
-        contextInfo: getNewsletterContext()
+      
+      await this.sock.sendMessage(jid, {
+        text: `🏓 PONG!\n\nLatency: ${Date.now() - start}ms\nStatus: Fast`
       }, { quoted: originalMessage });
-      
-      const latency = Date.now() - start;
-      
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("PING TEST", 
-          `🏓 PONG!\nLatency: ${latency}ms\nStatus: Optimal\nServer: Active`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: pingMsg });
     } catch (error) {
-      console.error("Error in handlePing:", error);
-      return null;
-    }
-  }
-
-  async handleMenu(jid, originalMessage) {
-    try {
-      console.log("📋 Handling .menu command");
-      
-      // Send image with menu
-      const message = await this.sock.sendMessage(jid, {
-        image: { url: BOT_IMAGE_URL },
-        caption: getMenuMessage(),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      
-      console.log("✅ .menu command executed successfully");
-      return message;
-    } catch (error) {
-      console.error("❌ Error in handleMenu:", error.message);
-      
-      // Fallback to text only
-      return this.sock.sendMessage(jid, {
-        text: getMenuMessage(),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
+      console.log('Ping command error:', error.message);
     }
   }
 
   async handleHelp(jid, originalMessage) {
     try {
-      return this.sock.sendMessage(jid, {
-        text: getCommandList(),
-        contextInfo: getNewsletterContext()
+      await this.sock.sendMessage(jid, {
+        text: getCommandList()
       }, { quoted: originalMessage });
     } catch (error) {
-      console.error("Error in handleHelp:", error);
-      return null;
+      console.log('Help command error:', error.message);
     }
   }
 
   async handleInfo(jid, originalMessage) {
     try {
-      return this.sock.sendMessage(jid, {
-        text: getBotInfo(),
-        contextInfo: getNewsletterContext()
+      await this.sock.sendMessage(jid, {
+        text: getBotInfo()
       }, { quoted: originalMessage });
     } catch (error) {
-      console.error("Error in handleInfo:", error);
-      return null;
+      console.log('Info command error:', error.message);
     }
   }
 
   async handleStats(jid, originalMessage) {
     try {
-      const groups = await this.sock.groupFetchAllParticipating();
-      const groupCount = Object.keys(groups).length;
+      const statsText = `📊 *Bot Statistics*\n\n` +
+                       `Commands: ${this.stats.commandsExecuted}\n` +
+                       `Messages: ${this.stats.messagesProcessed}\n` +
+                       `Status: Online\n` +
+                       `Uptime: 100%`;
       
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("BOT STATISTICS",
-          `📊 *Usage Statistics*
-────────────────────
-Commands Executed: ${this.stats.commandsExecuted}
-Messages Processed: ${this.stats.messagesProcessed}
-Active Groups: ${groupCount}
-Uptime: 100%
-
-⚡ *Performance*
-────────────────────
-Response Time: < 1s
-Success Rate: 99.9%
-Memory Usage: Optimized
-
-🔄 *Last Updated*
-────────────────────
-${new Date().toLocaleString()}`),
-        contextInfo: getNewsletterContext()
+      await this.sock.sendMessage(jid, {
+        text: statsText
       }, { quoted: originalMessage });
     } catch (error) {
-      console.error("Error in handleStats:", error);
-      return null;
+      console.log('Stats command error:', error.message);
     }
   }
 
   async handleAbout(jid, originalMessage) {
     try {
-      return this.sock.sendMessage(jid, {
-        text: getAbout(),
-        contextInfo: getNewsletterContext()
+      await this.sock.sendMessage(jid, {
+        text: getAbout()
       }, { quoted: originalMessage });
     } catch (error) {
-      console.error("Error in handleAbout:", error);
-      return null;
+      console.log('About command error:', error.message);
     }
   }
 
-  async handleTagAll(jid, isGroup, sender, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
+  async handleTagAll(jid, originalMessage) {
     try {
-      const meta = await this.sock.groupMetadata(jid);
-      const mentions = meta.participants.map(p => p.id);
-      const mentionList = mentions.map(u => `@${u.split("@")[0]}`).join(" ");
+      const isGroup = jid.endsWith('@g.us');
+      if (!isGroup) {
+        await this.sock.sendMessage(jid, {
+          text: '❌ This command only works in groups!'
+        }, { quoted: originalMessage });
+        return;
+      }
 
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("GROUP ACTION",
-          `📣 TAG ALL MEMBERS\n\nTotal: ${mentions.length} members\n\n${mentionList}`),
-        mentions,
-        contextInfo: getNewsletterContext()
+      const metadata = await this.sock.groupMetadata(jid);
+      const participants = metadata.participants;
+      const mentions = participants.map(p => p.id);
+      
+      let mentionText = '📢 *MENTION ALL*\n\n';
+      participants.forEach((p, i) => {
+        mentionText += `@${p.id.split('@')[0]} `;
+        if ((i + 1) % 5 === 0) mentionText += '\n';
+      });
+      
+      mentionText += `\n\nTotal: ${participants.length} members`;
+      
+      await this.sock.sendMessage(jid, {
+        text: mentionText,
+        mentions: mentions
       }, { quoted: originalMessage });
     } catch (error) {
-      console.error("Error in handleTagAll:", error);
-      return this.sock.sendMessage(jid, {
-        text: "❌ Failed to tag members. Make sure I'm admin in this group.",
-        contextInfo: getNewsletterContext()
+      await this.sock.sendMessage(jid, {
+        text: '❌ Failed to tag members. Need admin permission.'
       }, { quoted: originalMessage });
-    }
-  }
-
-  async handleMute(jid, isGroup, sender, shouldMute, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can use this command!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      await this.sock.groupSettingUpdate(
-        jid,
-        shouldMute ? "announcement" : "not_announcement"
-      );
-
-      const action = shouldMute ? "🔇 GROUP MUTED" : "🔊 GROUP UNMUTED";
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ADMIN ACTION",
-          `${action}\nGroup: ${meta.subject}\nAction by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleMute:", error);
-      return this.sock.sendMessage(jid, {
-        text: "❌ Failed to change group settings. Make sure I'm admin.",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleWelcome(jid, isGroup, sender, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const settings = this.groupSettings.get(jid);
-      if (!settings) return;
-
-      settings.welcome = !settings.welcome;
-      this.groupSettings.set(jid, settings);
-
-      const status = settings.welcome ? "ENABLED ✅" : "DISABLED ❌";
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("WELCOME SETTINGS",
-          `Welcome messages have been ${status}\n\nGroup: ${jid.split("@")[0]}\nChanged by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleWelcome:", error);
-      return null;
-    }
-  }
-
-  async handlePromote(jid, isGroup, sender, targetUsers, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can promote users!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      if (targetUsers.length === 0) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("USAGE", 
-            "Usage: .promote @user\nOR\nReply to a message with .promote\n\nExample:\n- .promote @username\n- Reply to user's message with .promote"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      const userToPromote = targetUsers[0];
-      
-      // Check if user is already admin
-      const isAlreadyAdmin = admins.includes(userToPromote);
-      if (isAlreadyAdmin) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("INFO", 
-            `👑 User is already an admin!\n\nUser: @${userToPromote.split("@")[0]}`),
-          mentions: [userToPromote],
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-      
-      await this.sock.groupParticipantsUpdate(jid, [userToPromote], "promote");
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("PROMOTION SUCCESS",
-          `👑 User promoted to admin!\n\nUser: @${userToPromote.split("@")[0]}\nPromoted by: @${sender.split("@")[0]}`),
-        mentions: [userToPromote, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handlePromote:", error);
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", `❌ Failed to promote user:\n${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleDemote(jid, isGroup, sender, targetUsers, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can demote users!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      if (targetUsers.length === 0) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("USAGE", 
-            "Usage: .demote @user\nOR\nReply to a message with .demote\n\nExample:\n- .demote @username\n- Reply to user's message with .demote"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      const userToDemote = targetUsers[0];
-      
-      // Check if user is not an admin
-      const isAdmin = admins.includes(userToDemote);
-      if (!isAdmin) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("INFO", 
-            `📉 User is not an admin!\n\nUser: @${userToDemote.split("@")[0]}`),
-          mentions: [userToDemote],
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-      
-      // Prevent demoting yourself if you're the only admin
-      if (userToDemote === sender && admins.length === 1) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", 
-            "❌ You cannot demote yourself as the only admin!\nPromote someone else first."),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-      
-      await this.sock.groupParticipantsUpdate(jid, [userToDemote], "demote");
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("DEMOTION SUCCESS",
-          `📉 User demoted from admin!\n\nUser: @${userToDemote.split("@")[0]}\nDemoted by: @${sender.split("@")[0]}`),
-        mentions: [userToDemote, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleDemote:", error);
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", `❌ Failed to demote user:\n${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleKick(jid, isGroup, sender, targetUsers, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can kick users!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      if (targetUsers.length === 0) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("USAGE", 
-            "Usage: .kick @user\nOR\nReply to a message with .kick\n\nExample:\n- .kick @username\n- Reply to user's message with .kick"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      const userToKick = targetUsers[0];
-      
-      // Prevent kicking yourself
-      if (userToKick === sender) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ You cannot kick yourself!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-      
-      // Prevent kicking other admins
-      if (admins.includes(userToKick)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", 
-            `❌ You cannot kick another admin!\nUse .demote @${userToKick.split("@")[0]} first.`),
-          mentions: [userToKick],
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-      
-      await this.sock.groupParticipantsUpdate(jid, [userToKick], "remove");
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("USER KICKED",
-          `👢 User has been kicked!\n\nUser: @${userToKick.split("@")[0]}\nKicked by: @${sender.split("@")[0]}`),
-        mentions: [userToKick, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleKick:", error);
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", `❌ Failed to kick user:\n${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleSetDesc(jid, isGroup, sender, description, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can change group description!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      if (!description) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("USAGE", "Usage: .setdesc [new description]\nExample: .setdesc Welcome to our group!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      await this.sock.groupUpdateDescription(jid, description);
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("DESCRIPTION UPDATED",
-          `📝 Group description updated!\n\nNew Description: ${description}\nChanged by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleSetDesc:", error);
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", `❌ Failed to update description:\n${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleSetPP(jid, isGroup, sender, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can change group profile picture!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      // Check if the message contains an image
-      if (!originalMessage.message?.imageMessage) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("USAGE", "Usage: Reply to an image with .setpp\n\nExample: Send an image, then reply to it with .setpp"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      // Get the image buffer
-      const imageBuffer = await this.sock.downloadMediaMessage(originalMessage);
-      
-      // Update group profile picture
-      await this.sock.updateProfilePicture(jid, imageBuffer);
-      
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("PROFILE PICTURE UPDATED",
-          `🖼️ Group profile picture updated!\n\nChanged by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleSetPP:", error);
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", `❌ Failed to update profile picture:\n${error.message}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleAntiLink(jid, isGroup, sender, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can change anti-link settings!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      const settings = this.groupSettings.get(jid);
-      if (!settings) return;
-
-      settings.antilink = !settings.antilink;
-      this.groupSettings.set(jid, settings);
-
-      const status = settings.antilink ? "ENABLED ✅" : "DISABLED ❌";
-      const action = settings.antilink ? "will be automatically deleted" : "are now allowed";
-      
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ANTI-LINK SETTINGS",
-          `🔗 Anti-link protection has been ${status}\n\nLinks ${action} in this group.\nChanged by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleAntiLink:", error);
-      return null;
-    }
-  }
-
-  async handleAntiSticker(jid, isGroup, sender, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can change anti-sticker settings!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      const settings = this.groupSettings.get(jid);
-      if (!settings) return;
-
-      settings.antisticker = !settings.antisticker;
-      this.groupSettings.set(jid, settings);
-
-      const status = settings.antisticker ? "ENABLED ✅" : "DISABLED ❌";
-      const action = settings.antisticker ? "will be automatically deleted" : "are now allowed";
-      
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ANTI-STICKER SETTINGS",
-          `😀 Anti-sticker protection has been ${status}\n\nStickers ${action} in this group.\nChanged by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleAntiSticker:", error);
-      return null;
-    }
-  }
-
-  async handleAntiAudio(jid, isGroup, sender, originalMessage) {
-    if (!isGroup) {
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ERROR", "❌ This command only works in groups!"),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants
-        .filter(p => p.admin)
-        .map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        return this.sock.sendMessage(jid, {
-          text: createStyledMessage("ERROR", "❌ Only admins can change anti-audio settings!"),
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-
-      const settings = this.groupSettings.get(jid);
-      if (!settings) return;
-
-      settings.antiaudio = !settings.antiaudio;
-      this.groupSettings.set(jid, settings);
-
-      const status = settings.antiaudio ? "ENABLED ✅" : "DISABLED ❌";
-      const action = settings.antiaudio ? "will be automatically deleted" : "are now allowed";
-      
-      return this.sock.sendMessage(jid, {
-        text: createStyledMessage("ANTI-AUDIO SETTINGS",
-          `🎵 Anti-audio protection has been ${status}\n\nAudio messages ${action} in this group.\nChanged by: @${sender.split("@")[0]}`),
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      console.error("Error in handleAntiAudio:", error);
-      return null;
     }
   }
 }
 
-module.exports = CommandHandler;r;
+module.exports = CommandHandler;

@@ -1,320 +1,328 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Viral-Bot Mini | Obsidian Edition</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viral-Bot Mini | WhatsApp Bot</title>
   <style>
-    :root {
-      --bg: #020617;
-      --card-bg: rgba(7, 10, 25, 0.85);
-      --accent: #10b981;
-      --accent-dim: rgba(16, 185, 129, 0.2);
-      --text-main: #ffffff;
-      --text-dim: #94a3b8;
-      --error: #ff4757;
-      --border: rgba(255, 255, 255, 0.05);
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
     body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
-      background-color: var(--bg);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(14, 165, 233, 0.1) 0px, transparent 50%);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--text-main);
-      overflow-x: hidden;
+      padding: 20px;
     }
-
-    /* Animated background elements */
-    .glow-circle {
-      position: absolute;
-      width: 300px;
-      height: 300px;
-      background: var(--accent);
-      filter: blur(120px);
-      border-radius: 50%;
-      opacity: 0.1;
-      z-index: -1;
-      animation: drift 10s infinite alternate;
-    }
-
-    @keyframes drift {
-      from { transform: translate(-10%, -10%); }
-      to { transform: translate(10%, 10%); }
-    }
-
+    
     .container {
       width: 100%;
-      max-width: 440px;
-      padding: 20px;
-      animation: fadeIn 1s ease-out;
-    }
-
-    .glass-card {
-      background: var(--card-bg);
-      backdrop-filter: blur(25px);
-      -webkit-backdrop-filter: blur(25px);
-      border: 1px solid var(--border);
-      border-radius: 32px;
+      max-width: 500px;
+      background: white;
+      border-radius: 20px;
       padding: 40px;
-      box-shadow: 0 40px 100px -20px rgba(0,0,0,0.8);
-      position: relative;
-      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     }
-
-    .glass-card::before {
-      content: "";
-      position: absolute;
-      top: 0; left: -100%;
-      width: 100%; height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
-      transition: 0.5s;
+    
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
     }
-
-    .glass-card:hover::before { left: 100%; transition: 0.8s; }
-
-    .branding { text-align: center; margin-bottom: 35px; }
-    .branding h1 { 
-      font-size: 2rem; 
-      font-weight: 900; 
-      letter-spacing: -1.5px;
-      background: linear-gradient(to right, #10b981, #34d399);
+    
+    h1 {
+      color: #333;
+      font-size: 32px;
+      margin-bottom: 10px;
+      background: linear-gradient(45deg, #667eea, #764ba2);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
-
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.65rem;
-      font-weight: 700;
-      color: var(--accent);
-      background: var(--accent-dim);
-      padding: 6px 14px;
-      border-radius: 100px;
-      margin-top: 10px;
-      letter-spacing: 1px;
-    }
-
-    .pulse-dot {
-      width: 5px; height: 5px;
-      background: var(--accent);
-      border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-    .input-group { margin-bottom: 20px; position: relative; }
     
-    input[type="tel"] {
-      width: 100%;
-      background: rgba(0,0,0,0.3);
-      border: 1px solid var(--border);
-      padding: 18px;
-      border-radius: 18px;
+    .subtitle {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    
+    .status {
+      display: inline-block;
+      background: #10b981;
       color: white;
-      font-size: 1rem;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
     }
-
-    input[type="tel"]:focus {
-      outline: none;
-      border-color: var(--accent);
-      background: rgba(0,0,0,0.5);
-      box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
-      transform: scale(1.02);
+    
+    .input-group {
+      margin-bottom: 20px;
     }
-
-    .main-btn {
+    
+    input {
       width: 100%;
-      background: var(--accent);
-      color: #022c22;
-      font-weight: 800;
-      padding: 18px;
+      padding: 15px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: border 0.3s;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    input::placeholder {
+      color: #94a3b8;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(45deg, #667eea, #764ba2);
+      color: white;
       border: none;
-      border-radius: 18px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
       cursor: pointer;
-      font-size: 0.95rem;
-      transition: all 0.3s;
+      transition: transform 0.3s;
     }
-
-    .main-btn:hover:not(:disabled) {
-      transform: translateY(-3px);
-      box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.4);
+    
+    .btn:hover {
+      transform: translateY(-2px);
     }
-
-    .main-btn:active { transform: translateY(0); }
-
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .loader {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+      color: #667eea;
+      font-weight: bold;
+    }
+    
     .code-display {
-      margin-top: 30px;
+      margin: 30px 0;
       padding: 30px;
-      background: rgba(255,255,255,0.02);
-      border-radius: 24px;
-      border: 1px solid var(--border);
+      background: #f8fafc;
+      border-radius: 15px;
+      text-align: center;
+      display: none;
+    }
+    
+    .code {
+      font-family: monospace;
+      font-size: 40px;
+      font-weight: bold;
+      letter-spacing: 5px;
+      color: #667eea;
+      margin-bottom: 20px;
+    }
+    
+    .copy-btn {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 10px 25px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    
+    .copy-btn:hover {
+      background: #0da271;
+    }
+    
+    .error {
+      background: #fee2e2;
+      color: #dc2626;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
       text-align: center;
     }
-
-    #codeValue {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 2.4rem;
-      font-weight: 800;
-      color: var(--accent);
-      letter-spacing: 5px;
-      margin-bottom: 15px;
-      text-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-    }
-
-    .copy-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      padding: 10px 20px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-
-    .copy-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-
-    .setup-guide { margin-top: 35px; border-top: 1px solid var(--border); padding-top: 25px; }
-    .setup-guide h2 { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px; }
     
-    .step-item {
+    .instructions {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+    }
+    
+    .instructions h3 {
+      color: #475569;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 15px;
+    }
+    
+    .step {
       display: flex;
-      gap: 15px;
-      margin-bottom: 12px;
-      font-size: 0.85rem;
-      color: var(--text-dim);
+      margin-bottom: 15px;
+      align-items: flex-start;
+    }
+    
+    .step-number {
+      background: #667eea;
+      color: white;
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      margin-right: 15px;
+      flex-shrink: 0;
+    }
+    
+    .step-text {
+      color: #475569;
+      font-size: 14px;
       line-height: 1.5;
     }
-
-    .step-dot { color: var(--accent); font-weight: bold; }
-
-    #errorPopup {
-      color: var(--error);
-      background: rgba(239, 68, 68, 0.1);
-      padding: 12px;
-      border-radius: 12px;
-      font-size: 0.8rem;
-      text-align: center;
-      margin-bottom: 15px;
-      display: none;
-      animation: shake 0.4s ease-in-out;
-    }
-
-    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-    /* Loader */
-    .loader { display: none; justify-content: center; gap: 8px; margin: 20px 0; }
-    .loader div { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: jump 0.6s infinite alternate; }
-    .loader div:nth-child(2) { animation-delay: 0.2s; }
-    .loader div:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes jump { to { transform: translateY(-10px); opacity: 0.4; } }
   </style>
 </head>
 <body>
-  <div class="glow-circle"></div>
   <div class="container">
-    <div class="glass-card">
-      <div class="branding">
-        <h1>Viral-Bot Mini</h1>
-        <div class="status-badge">
-          <div class="pulse-dot"></div>
-          CORE SECURED
-        </div>
+    <div class="header">
+      <h1>Viral-Bot Mini</h1>
+      <p class="subtitle">Advanced WhatsApp Bot with Group Management</p>
+      <div class="status">BOT READY</div>
+    </div>
+    
+    <div class="error" id="error"></div>
+    
+    <div class="input-group">
+      <input 
+        type="tel" 
+        id="phone" 
+        placeholder="Enter phone number (e.g., 2348123456789)" 
+        autocomplete="off"
+      />
+    </div>
+    
+    <button class="btn" id="pairBtn">GENERATE WHATSAPP CODE</button>
+    
+    <div class="loader" id="loader">Generating code...</div>
+    
+    <div class="code-display" id="codeDisplay">
+      <div class="code" id="codeValue">---- ----</div>
+      <button class="copy-btn" id="copyBtn">COPY CODE</button>
+    </div>
+    
+    <div class="instructions">
+      <h3>How to Connect</h3>
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-text">Open WhatsApp → Settings → Linked Devices</div>
       </div>
-
-      <div id="errorPopup"></div>
-
-      <div class="input-group">
-        <input type="tel" id="phone" placeholder="Enter Phone (e.g. 23481...)" />
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-text">Select "Link with phone number instead"</div>
       </div>
-
-      <button class="main-btn" id="pairBtn">GENERATE ACCESS CODE</button>
-
-      <div class="loader" id="loader">
-        <div></div><div></div><div></div>
-      </div>
-
-      <div class="code-display">
-        <div id="codeValue">---- ----</div>
-        <button class="copy-btn" id="copyBtn" disabled>COPY TO CLIPBOARD</button>
-      </div>
-
-      <div class="setup-guide">
-        <h2>LINKING STEPS</h2>
-        <div class="step-item"><span class="step-dot">01</span><p>Go to WhatsApp Settings > Linked Devices</p></div>
-        <div class="step-item"><span class="step-dot">02</span><p>Select 'Link with phone number instead'</p></div>
-        <div class="step-item"><span class="step-dot">03</span><p>Paste the 8-digit code above</p></div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-text">Enter your number and paste the 8-digit code</div>
       </div>
     </div>
   </div>
-
+  
   <script>
     const pairBtn = document.getElementById('pairBtn');
     const loader = document.getElementById('loader');
+    const codeDisplay = document.getElementById('codeDisplay');
     const codeValue = document.getElementById('codeValue');
     const copyBtn = document.getElementById('copyBtn');
-    const errorPopup = document.getElementById('errorPopup');
+    const error = document.getElementById('error');
     const phoneInput = document.getElementById('phone');
-
-    function showError(msg) {
-      errorPopup.textContent = msg;
-      errorPopup.style.display = 'block';
-      setTimeout(() => { errorPopup.style.display = 'none'; }, 5000);
-    }
-
-    pairBtn.addEventListener('click', async () => {
+    
+    async function generateCode() {
       const phone = phoneInput.value.trim();
-      if (!phone) return showError('Phone number is required');
-
+      
+      if (!phone) {
+        showError('Please enter your phone number');
+        return;
+      }
+      
+      if (phone.length < 10) {
+        showError('Please enter a valid phone number');
+        return;
+      }
+      
+      // Show loading
       pairBtn.disabled = true;
-      loader.style.display = 'flex';
-      codeValue.textContent = '---- ----';
-
+      loader.style.display = 'block';
+      codeDisplay.style.display = 'none';
+      error.style.display = 'none';
+      
       try {
-        const res = await fetch('/pair', {
+        const response = await fetch('/pair', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone })
         });
-        const data = await res.json();
-
+        
+        const data = await response.json();
+        
         if (data.success) {
+          // Show code
           codeValue.textContent = data.code;
+          codeDisplay.style.display = 'block';
           copyBtn.disabled = false;
         } else {
-          showError(data.error || 'Request failed');
+          showError(data.error || 'Failed to generate code');
         }
-      } catch (e) {
-        showError('System offline. Check connection.');
+      } catch (err) {
+        showError('Connection error. Please try again.');
       } finally {
         pairBtn.disabled = false;
         loader.style.display = 'none';
       }
+    }
+    
+    function showError(message) {
+      error.textContent = message;
+      error.style.display = 'block';
+      
+      setTimeout(() => {
+        error.style.display = 'none';
+      }, 3000);
+    }
+    
+    function copyCode() {
+      const code = codeValue.textContent.replace(/\s/g, '');
+      
+      navigator.clipboard.writeText(code).then(() => {
+        copyBtn.textContent = 'COPIED!';
+        
+        setTimeout(() => {
+          copyBtn.textContent = 'COPY CODE';
+        }, 2000);
+      });
+    }
+    
+    // Event listeners
+    pairBtn.addEventListener('click', generateCode);
+    copyBtn.addEventListener('click', copyCode);
+    
+    // Enter key to submit
+    phoneInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') generateCode();
     });
-
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(codeValue.textContent);
-      const oldText = copyBtn.textContent;
-      copyBtn.textContent = 'COPIED!';
-      copyBtn.style.color = '#10b981';
-      setTimeout(() => { 
-        copyBtn.textContent = oldText; 
-        copyBtn.style.color = '';
-      }, 2000);
-    });
+    
+    // Focus input
+    phoneInput.focus();
   </script>
 </body>
 </html>
