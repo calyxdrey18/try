@@ -1,4 +1,4 @@
-// commands.js
+// commands.js - updated handleAlive and handleMenu methods
 const { 
   BOT_IMAGE_URL, 
   CHANNEL_NAME, 
@@ -64,6 +64,8 @@ class CommandHandler {
       quotedMessage = m.message.extendedTextMessage.contextInfo?.quotedMessage;
     } else if (type === "imageMessage" && m.message.imageMessage.caption) {
       text = m.message.imageMessage.caption;
+    } else if (type === "videoMessage" && m.message.videoMessage.caption) {
+      text = m.message.videoMessage.caption;
     }
 
     // Check for anti-features BEFORE processing commands
@@ -202,12 +204,27 @@ class CommandHandler {
   }
 
   async handleAlive(jid, originalMessage) {
-    return this.sock.sendMessage(jid, {
-      image: { url: BOT_IMAGE_URL },
-      caption: createStyledMessage("SYSTEM STATUS", 
-        "✅ Viral-Bot Mini is Alive & Running\n\nStatus: ONLINE\nUptime: 100%\nVersion: 2.0.0\nCommands: 20+ Active"),
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+    try {
+      // Send image with caption
+      const message = {
+        image: { url: BOT_IMAGE_URL },
+        caption: createStyledMessage("SYSTEM STATUS", 
+          "✅ Viral-Bot Mini is Alive & Running\n\nStatus: ONLINE\nUptime: 100%\nVersion: 2.0.0\nCommands: 20+ Active"),
+        contextInfo: getNewsletterContext()
+      };
+      
+      return this.sock.sendMessage(jid, message, { 
+        quoted: originalMessage 
+      });
+    } catch (error) {
+      console.error("Error in handleAlive:", error);
+      // Fallback to text only if image fails
+      return this.sock.sendMessage(jid, {
+        text: createStyledMessage("SYSTEM STATUS", 
+          "✅ Viral-Bot Mini is Alive & Running\n\nStatus: ONLINE\nUptime: 100%\nVersion: 2.0.0\nCommands: 20+ Active\n\nNote: Image could not be loaded"),
+        contextInfo: getNewsletterContext()
+      }, { quoted: originalMessage });
+    }
   }
 
   async handlePing(jid, originalMessage) {
@@ -227,17 +244,31 @@ class CommandHandler {
   }
 
   async handleMenu(jid, originalMessage) {
-    return this.sock.sendMessage(jid, {
-      image: { url: BOT_IMAGE_URL },
-      caption: getCommandList(),
-      buttons: [{
-        buttonId: "open_channel",
-        buttonText: { displayText: "📢 View Channel" },
-        type: 1
-      }],
-      headerType: 1,
-      contextInfo: getNewsletterContext()
-    }, { quoted: originalMessage });
+    try {
+      // Create message with image and buttons
+      const message = {
+        image: { url: BOT_IMAGE_URL },
+        caption: getCommandList(),
+        buttons: [{
+          buttonId: "open_channel",
+          buttonText: { displayText: "📢 View Channel" },
+          type: 1
+        }],
+        headerType: 1,
+        contextInfo: getNewsletterContext()
+      };
+      
+      return this.sock.sendMessage(jid, message, { 
+        quoted: originalMessage 
+      });
+    } catch (error) {
+      console.error("Error in handleMenu:", error);
+      // Fallback to text only if image fails
+      return this.sock.sendMessage(jid, {
+        text: getCommandList(),
+        contextInfo: getNewsletterContext()
+      }, { quoted: originalMessage });
+    }
   }
 
   async handleHelp(jid, originalMessage) {
@@ -287,6 +318,7 @@ ${new Date().toLocaleString()}`),
     }, { quoted: originalMessage });
   }
 
+  // ... [rest of the methods remain the same]
   async handleTagAll(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
       return this.sock.sendMessage(jid, {
