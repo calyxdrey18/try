@@ -63,9 +63,6 @@ async function startWhatsApp(phoneForPair = null) {
         console.log("✅ WhatsApp Connected");
         pairingCode = null;
         isStarting = false;
-        
-        // Mark bot as online
-        sock.sendPresenceUpdate('available');
       }
 
       if (connection === "close") {
@@ -100,16 +97,10 @@ async function startWhatsApp(phoneForPair = null) {
       if (!m?.message) return;
 
       try {
-        // Process message asynchronously
-        setTimeout(async () => {
-          try {
-            await commandHandler.handleMessage(m);
-          } catch (error) {
-            console.error("Error handling message:", error);
-          }
-        }, 500); // Small delay for more human-like behavior
+        // Process message immediately
+        await commandHandler.handleMessage(m);
       } catch (error) {
-        console.error("Error in message processing:", error);
+        console.error("Error handling message:", error);
       }
     });
 
