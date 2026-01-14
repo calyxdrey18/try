@@ -1,3 +1,4 @@
+
 // commands.js
 const { 
   BOT_IMAGE_URL, 
@@ -89,6 +90,61 @@ class CommandHandler {
     }
   }
 
+  // Helper to extract text from message
+  extractTextFromMessage(m) {
+    if (!m || !m.message) return "";
+    
+    const msg = m.message;
+    
+    // Check for conversation text
+    if (msg.conversation) {
+      return msg.conversation;
+    }
+    
+    // Check for extended text
+    if (msg.extendedTextMessage) {
+      return msg.extendedTextMessage.text || "";
+    }
+    
+    // Check for image with caption
+    if (msg.imageMessage && msg.imageMessage.caption) {
+      return msg.imageMessage.caption;
+    }
+    
+    // Check for video with caption
+    if (msg.videoMessage && msg.videoMessage.caption) {
+      return msg.videoMessage.caption;
+    }
+    
+    // Check for view-once messages
+    if (msg.viewOnceMessage) {
+      if (msg.viewOnceMessage.message?.imageMessage?.caption) {
+        return msg.viewOnceMessage.message.imageMessage.caption;
+      }
+      if (msg.viewOnceMessage.message?.videoMessage?.caption) {
+        return msg.viewOnceMessage.message.videoMessage.caption;
+      }
+      if (msg.viewOnceMessage.message?.extendedTextMessage?.text) {
+        return msg.viewOnceMessage.message.extendedTextMessage.text;
+      }
+    }
+    
+    // Check for view-once V2
+    if (msg.viewOnceMessageV2) {
+      if (msg.viewOnceMessageV2.message?.imageMessage?.caption) {
+        return msg.viewOnceMessageV2.message.imageMessage.caption;
+      }
+      if (msg.viewOnceMessageV2.message?.videoMessage?.caption) {
+        return msg.viewOnceMessageV2.message.videoMessage.caption;
+      }
+      if (msg.viewOnceMessageV2.message?.extendedTextMessage?.text) {
+        return msg.viewOnceMessageV2.message.extendedTextMessage.text;
+      }
+    }
+    
+    return "";
+  }
+
   async handleMessage(m) {
     const jid = m.key.remoteJid;
     if (jid === "status@broadcast") return;
@@ -123,33 +179,25 @@ class CommandHandler {
       }
     }
 
-    // Extract text from message
-    const type = getMessageType(m);
-    let text = "";
+    // Extract text from message using the helper
+    let text = this.extractTextFromMessage(m);
     
-    if (type === "conversation") {
-      text = m.message.conversation;
-    } else if (type === "extendedTextMessage") {
-      text = m.message.extendedTextMessage.text;
-    } else if (type === "imageMessage" && m.message.imageMessage.caption) {
-      text = m.message.imageMessage.caption;
-    } else if (type === "videoMessage" && m.message.videoMessage.caption) {
-      text = m.message.videoMessage.caption;
-    }
-
     // Check for anti-features BEFORE processing commands
     if (isGroup) {
       await this.checkAntiFeatures(jid, m);
     }
 
-    if (!text || !text.startsWith(".")) return;
+    // Check if text starts with command prefix
+    if (!text || !text.trim().startsWith(".")) {
+      return; // Not a command
+    }
 
     // Prevent reply loops
     const isBotEcho = m.key.fromMe && 
       m.message.extendedTextMessage?.contextInfo?.stanzaId;
     if (isBotEcho) return;
 
-    const args = text.slice(1).trim().split(/\s+/);
+    const args = text.trim().slice(1).split(/\s+/);
     const command = args[0].toLowerCase();
     
     // Get quoted participant for reply-based commands
@@ -158,67 +206,71 @@ class CommandHandler {
 
     this.stats.commandsExecuted++;
 
-    // Simulate typing before response
-    const typingDuration = Math.random() * 1500 + 800;
-    await this.simulateTyping(jid, typingDuration);
+    // Route command to appropriate handler WITHOUT typing simulation first
+    // The individual handlers will handle their own typing simulation
+    return await this.routeCommand(command, jid, m, {
+      isGroup,
+      sender,
+      args: args.slice(1),
+      targetUsers
+    });
+  }
 
-    // Add small random delay for human-like behavior
-    const randomDelay = Math.random() * 1000 + 500;
-    await new Promise(resolve => setTimeout(resolve, randomDelay));
-
-    // Route command to appropriate handler
+  async routeCommand(command, jid, originalMessage, options) {
+    const { isGroup, sender, args, targetUsers } = options;
+    
     switch(command) {
       case 'alive':
-        return this.handleAlive(jid, m);
+        return await this.handleAlive(jid, originalMessage);
       case 'ping':
-        return this.handlePing(jid, m);
+        return await this.handlePing(jid, originalMessage);
       case 'menu':
-        return this.handleMenu(jid, m);
+        return await this.handleMenu(jid, originalMessage);
       case 'tagall':
-        return this.handleTagAll(jid, isGroup, sender, m);
+        return await this.handleTagAll(jid, isGroup, sender, originalMessage);
       case 'mute':
-        return this.handleMute(jid, isGroup, sender, true, m);
+        return await this.handleMute(jid, isGroup, sender, true, originalMessage);
       case 'unmute':
-        return this.handleMute(jid, isGroup, sender, false, m);
+        return await this.handleMute(jid, isGroup, sender, false, originalMessage);
       case 'help':
-        return this.handleHelp(jid, m);
+        return await this.handleHelp(jid, originalMessage);
       case 'info':
-        return this.handleInfo(jid, m);
+        return await this.handleInfo(jid, originalMessage);
       case 'stats':
-        return this.handleStats(jid, m);
+        return await this.handleStats(jid, originalMessage);
       case 'about':
-        return this.handleAbout(jid, m);
+        return await this.handleAbout(jid, originalMessage);
       case 'welcome':
-        return this.handleWelcome(jid, isGroup, sender, m);
+        return await this.handleWelcome(jid, isGroup, sender, originalMessage);
       case 'promote':
-        return this.handlePromote(jid, isGroup, sender, targetUsers, m);
+        return await this.handlePromote(jid, isGroup, sender, targetUsers, originalMessage);
       case 'demote':
-        return this.handleDemote(jid, isGroup, sender, targetUsers, m);
+        return await this.handleDemote(jid, isGroup, sender, targetUsers, originalMessage);
       case 'kick':
-        return this.handleKick(jid, isGroup, sender, targetUsers, m);
+        return await this.handleKick(jid, isGroup, sender, targetUsers, originalMessage);
       case 'setdesc':
-        return this.handleSetDesc(jid, isGroup, sender, args.slice(1).join(" "), m);
+        return await this.handleSetDesc(jid, isGroup, sender, args.join(" "), originalMessage);
       case 'antilink':
-        return this.handleAntiLink(jid, isGroup, sender, m);
+        return await this.handleAntiLink(jid, isGroup, sender, originalMessage);
       case 'antisticker':
-        return this.handleAntiSticker(jid, isGroup, sender, m);
+        return await this.handleAntiSticker(jid, isGroup, sender, originalMessage);
       case 'antiaudio':
-        return this.handleAntiAudio(jid, isGroup, sender, m);
+        return await this.handleAntiAudio(jid, isGroup, sender, originalMessage);
       case 'antivideo':
-        return this.handleAntiVideo(jid, isGroup, sender, m);
+        return await this.handleAntiVideo(jid, isGroup, sender, originalMessage);
       case 'antiviewonce':
-        return this.handleAntiViewOnce(jid, isGroup, sender, m);
+        return await this.handleAntiViewOnce(jid, isGroup, sender, originalMessage);
       case 'antiimage':
-        return this.handleAntiImage(jid, isGroup, sender, m);
+        return await this.handleAntiImage(jid, isGroup, sender, originalMessage);
       case 'antifile':
-        return this.handleAntiFile(jid, isGroup, sender, m);
+        return await this.handleAntiFile(jid, isGroup, sender, originalMessage);
       case 'setpp':
-        return this.handleSetPP(jid, isGroup, sender, m);
+        return await this.handleSetPP(jid, isGroup, sender, originalMessage);
       case 'vv':
       case 'save':
-        return this.handleDownloadMedia(jid, sender, m);
+        return await this.handleDownloadMedia(jid, sender, originalMessage);
       default:
-        return this.handleUnknownCommand(jid, m);
+        return await this.handleUnknownCommand(jid, originalMessage);
     }
   }
 
@@ -237,9 +289,7 @@ Type *.help* to see available commands.`)
     if (!settings) return;
 
     // Get message text
-    const text = m.message.conversation || 
-                 m.message.extendedTextMessage?.text || 
-                 m.message.imageMessage?.caption || "";
+    const text = this.extractTextFromMessage(m);
     
     // Check for links (including shortened URLs)
     const hasLink = /(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+|bit\.ly\/[^\s]+|t\.co\/[^\s]+|goo\.gl\/[^\s]+)/i.test(text);
@@ -428,9 +478,6 @@ Commands: 25+ Active`)
     await this.simulateTyping(jid, 1200);
     
     const latency = Date.now() - start;
-    
-    // Simulate more typing
-    await this.simulateTyping(jid, 800);
     
     return this.sendReply(jid, {
       text: createStyledMessage("PING TEST", 
