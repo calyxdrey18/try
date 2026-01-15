@@ -53,11 +53,31 @@
       font-weight: bold;
     }
     
-    .input-group {
-      margin-bottom: 20px;
+    .phone-input {
+      margin-bottom: 15px;
     }
     
-    input {
+    .phone-input label {
+      display: block;
+      margin-bottom: 5px;
+      color: #4a5568;
+      font-size: 14px;
+    }
+    
+    .phone-container {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .country-code {
+      flex: 0 0 100px;
+    }
+    
+    .phone-number {
+      flex: 1;
+    }
+    
+    select, input {
       width: 100%;
       padding: 12px 15px;
       border: 2px solid #ddd;
@@ -65,9 +85,15 @@
       font-size: 16px;
     }
     
-    input:focus {
+    select:focus, input:focus {
       outline: none;
       border-color: #667eea;
+    }
+    
+    .country-examples {
+      margin-top: 5px;
+      font-size: 12px;
+      color: #718096;
     }
     
     .btn {
@@ -90,14 +116,6 @@
     .btn:disabled {
       background: #ccc;
       cursor: not-allowed;
-    }
-    
-    .btn-reset {
-      background: #e53e3e;
-    }
-    
-    .btn-reset:hover {
-      background: #c53030;
     }
     
     .loader {
@@ -190,17 +208,71 @@
   <div class="container">
     <div class="header">
       <h1>Viral-Bot Mini</h1>
-      <p class="subtitle">Advanced WhatsApp Bot with Group Management</p>
+      <p class="subtitle">Advanced WhatsApp Bot - Works Worldwide 🌍</p>
       <div class="status" id="status">READY FOR PAIRING</div>
     </div>
     
     <div class="error" id="error"></div>
     
-    <div class="input-group">
+    <div class="phone-input">
+      <label for="countryCode">Select Your Country:</label>
+      <div class="phone-container">
+        <div class="country-code">
+          <select id="countryCode">
+            <option value="1">🇺🇸 +1 (USA/Canada)</option>
+            <option value="44">🇬🇧 +44 (UK)</option>
+            <option value="91">🇮🇳 +91 (India)</option>
+            <option value="234" selected>🇳🇬 +234 (Nigeria)</option>
+            <option value="255">🇹🇿 +255 (Tanzania)</option>
+            <option value="254">🇰🇪 +254 (Kenya)</option>
+            <option value="27">🇿🇦 +27 (South Africa)</option>
+            <option value="233">🇬🇭 +233 (Ghana)</option>
+            <option value="256">🇺🇬 +256 (Uganda)</option>
+            <option value="20">🇪🇬 +20 (Egypt)</option>
+            <option value="212">🇲🇦 +212 (Morocco)</option>
+            <option value="966">🇸🇦 +966 (Saudi Arabia)</option>
+            <option value="971">🇦🇪 +971 (UAE)</option>
+            <option value="92">🇵🇰 +92 (Pakistan)</option>
+            <option value="62">🇮🇩 +62 (Indonesia)</option>
+            <option value="63">🇵🇭 +63 (Philippines)</option>
+            <option value="60">🇲🇾 +60 (Malaysia)</option>
+            <option value="65">🇸🇬 +65 (Singapore)</option>
+            <option value="84">🇻🇳 +84 (Vietnam)</option>
+            <option value="86">🇨🇳 +86 (China)</option>
+            <option value="81">🇯🇵 +81 (Japan)</option>
+            <option value="82">🇰🇷 +82 (South Korea)</option>
+            <option value="33">🇫🇷 +33 (France)</option>
+            <option value="49">🇩🇪 +49 (Germany)</option>
+            <option value="39">🇮🇹 +39 (Italy)</option>
+            <option value="34">🇪🇸 +34 (Spain)</option>
+            <option value="7">🇷🇺 +7 (Russia)</option>
+            <option value="55">🇧🇷 +55 (Brazil)</option>
+            <option value="54">🇦🇷 +54 (Argentina)</option>
+            <option value="52">🇲🇽 +52 (Mexico)</option>
+            <option value="90">🇹🇷 +90 (Turkey)</option>
+            <option value="other">Other Country</option>
+          </select>
+        </div>
+        <div class="phone-number">
+          <input 
+            type="tel" 
+            id="phoneNumber" 
+            placeholder="Phone number without country code"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+      <div class="country-examples">
+        Examples: For Nigeria: 8123456789 | For USA: 5551234567 | For India: 9876543210
+      </div>
+    </div>
+    
+    <div class="phone-input" id="customCountry" style="display: none;">
+      <label for="customCode">Enter Your Country Code:</label>
       <input 
         type="tel" 
-        id="phone" 
-        placeholder="Enter phone number (e.g., 2348123456789)" 
+        id="customCode" 
+        placeholder="e.g., 1, 44, 91, etc."
         autocomplete="off"
       />
     </div>
@@ -228,7 +300,11 @@
       </div>
       <div class="step">
         <span class="step-number">3</span>
-        Enter your number and paste the 8-digit code
+        Enter your FULL phone number with country code
+      </div>
+      <div class="step">
+        <span class="step-number">4</span>
+        Paste the 8-digit code shown above
       </div>
     </div>
     
@@ -244,36 +320,64 @@
     const codeValue = document.getElementById('codeValue');
     const copyBtn = document.getElementById('copyBtn');
     const error = document.getElementById('error');
-    const phoneInput = document.getElementById('phone');
+    const countryCode = document.getElementById('countryCode');
+    const phoneNumber = document.getElementById('phoneNumber');
+    const customCountry = document.getElementById('customCountry');
+    const customCode = document.getElementById('customCode');
     const status = document.getElementById('status');
     
-    // Format phone number as user types
-    phoneInput.addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\D/g, '');
-      if (value.length > 0 && !value.startsWith('234')) {
-        value = '234' + value;
+    // Show/hide custom country code field
+    countryCode.addEventListener('change', function() {
+      if (this.value === 'other') {
+        customCountry.style.display = 'block';
+      } else {
+        customCountry.style.display = 'none';
       }
-      e.target.value = value.substring(0, 13);
+    });
+    
+    // Format phone number as user types (digits only)
+    phoneNumber.addEventListener('input', function(e) {
+      this.value = this.value.replace(/\D/g, '').substring(0, 15);
+    });
+    
+    // Format custom code as user types
+    customCode.addEventListener('input', function(e) {
+      this.value = this.value.replace(/\D/g, '').substring(0, 4);
     });
     
     async function generateCode() {
-      const phone = phoneInput.value.trim();
+      let countryCodeValue = countryCode.value;
+      let phoneValue = phoneNumber.value.trim();
+      
+      // Handle custom country code
+      if (countryCodeValue === 'other') {
+        countryCodeValue = customCode.value.trim();
+        if (!countryCodeValue) {
+          showError('Please enter your country code');
+          return;
+        }
+      }
       
       // Validation
-      if (!phone) {
+      if (!phoneValue) {
         showError('Please enter your phone number');
         return;
       }
       
-      if (phone.length < 11 || phone.length > 13) {
-        showError('Phone number should be 11-13 digits (e.g., 2348123456789)');
+      if (phoneValue.length < 5 || phoneValue.length > 15) {
+        showError('Phone number should be 5-15 digits');
         return;
       }
       
-      if (!phone.startsWith('234')) {
-        showError('Phone must start with 234 (Nigeria)');
-        return;
+      // Remove leading zero if present
+      if (phoneValue.startsWith('0')) {
+        phoneValue = phoneValue.substring(1);
       }
+      
+      // Construct full phone number
+      const fullPhone = countryCodeValue + phoneValue;
+      
+      console.log(`Generating code for: +${fullPhone}`);
       
       // Show loading
       pairBtn.disabled = true;
@@ -287,7 +391,7 @@
         const response = await fetch('/pair', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: phone })
+          body: JSON.stringify({ phone: fullPhone })
         });
         
         const data = await response.json();
@@ -364,12 +468,16 @@
     copyBtn.addEventListener('click', copyCode);
     
     // Enter key to submit
-    phoneInput.addEventListener('keypress', (e) => {
+    phoneNumber.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') generateCode();
+    });
+    
+    customCode.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') generateCode();
     });
     
     // Auto-focus
-    phoneInput.focus();
+    phoneNumber.focus();
     
     // Check status on load
     async function checkStatus() {

@@ -1,4 +1,4 @@
-// server.js - FIXED PAIRING VERSION
+// server.js - ACCEPTS ALL COUNTRIES
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -27,7 +27,6 @@ let sock = null;
 let pairingCode = null;
 let commandHandler = null;
 let isConnected = false;
-let qrCode = null;
 
 // Health check for Render
 app.get("/health", (req, res) => {
@@ -43,12 +42,11 @@ app.get("/status", (req, res) => {
   res.json({
     connected: isConnected,
     pairingCode: pairingCode || "none",
-    hasAuth: fs.existsSync("./auth/creds.json"),
-    qrCode: qrCode ? "available" : "none"
+    hasAuth: fs.existsSync("./auth/creds.json")
   });
 });
 
-// Start WhatsApp with QR support
+// Start WhatsApp
 async function startWhatsApp() {
   try {
     console.log("🚀 Starting WhatsApp connection...");
@@ -71,16 +69,10 @@ async function startWhatsApp() {
 
     // Connection updates
     sock.ev.on("connection.update", (update) => {
-      const { connection, lastDisconnect, qr } = update;
+      const { connection, lastDisconnect } = update;
       
-      if (qr) {
-        qrCode = qr;
-        console.log("📱 New QR Code generated");
-      }
-
       if (connection === "open") {
         isConnected = true;
-        qrCode = null;
         pairingCode = null;
         console.log("✅ WhatsApp connected successfully!");
         
@@ -88,7 +80,7 @@ async function startWhatsApp() {
         try {
           if (sock.user?.id) {
             sock.sendMessage(sock.user.id, {
-              text: "🤖 *Viral-Bot Mini Started!*\n\nBot is now online and ready!\nUse `.menu` to see all commands."
+              text: "🤖 *Viral-Bot Mini Started!*\n\nBot is now online and ready!\nUse `.menu` to see all commands.\n\n📢 *Channel:* https://whatsapp.com/channel/0029VbCGIzTJkK7C0wtGy31s"
             });
           }
         } catch (error) {
@@ -98,7 +90,6 @@ async function startWhatsApp() {
 
       if (connection === "close") {
         isConnected = false;
-        qrCode = null;
         pairingCode = null;
         
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -137,30 +128,31 @@ async function startWhatsApp() {
   }
 }
 
-// PAIRING ENDPOINT - FIXED
+// PAIRING ENDPOINT - ACCEPTS ALL COUNTRIES
 app.post("/pair", async (req, res) => {
   try {
     let phone = String(req.body.phone || "").trim();
     
     // Basic validation
-    if (!phone || phone.length < 10) {
+    if (!phone || phone.length < 8) {
       return res.json({ 
         success: false, 
-        error: "Enter a valid phone number (e.g., 2348123456789)" 
+        error: "Enter a valid phone number (e.g., 14155551234, 919876543210, 447912345678)" 
       });
     }
 
     // Clean phone number - remove all non-digits
     phone = phone.replace(/\D/g, '');
     
-    // Ensure it starts with country code if Nigerian
-    if (phone.length === 10 && phone.startsWith('0')) {
-      phone = '234' + phone.substring(1);
-    } else if (phone.length === 11 && phone.startsWith('0')) {
-      phone = '234' + phone.substring(1);
-    }
+    console.log(`📱 Processing pairing for: +${phone}`);
     
-    console.log(`📱 Processing pairing for: ${phone}`);
+    // Check length - WhatsApp numbers are typically 8-15 digits including country code
+    if (phone.length < 8 || phone.length > 15) {
+      return res.json({ 
+        success: false, 
+        error: `Phone number should be 8-15 digits. You entered ${phone.length} digits.` 
+      });
+    }
     
     // Check if we have an active socket
     if (!sock) {
@@ -169,11 +161,6 @@ app.post("/pair", async (req, res) => {
       
       // Wait for initialization
       await new Promise(resolve => setTimeout(resolve, 3000));
-    }
-    
-    // Wait a bit more if still not ready
-    if (!sock) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
     if (!sock) {
@@ -191,7 +178,7 @@ app.post("/pair", async (req, res) => {
       console.log("Already registered, need to reset first");
       return res.json({ 
         success: false, 
-        error: "Bot is already connected. Please reset first." 
+        error: "Bot is already connected. Please use /reset-page first." 
       });
     }
     
@@ -209,7 +196,9 @@ app.post("/pair", async (req, res) => {
         return res.json({ 
           success: true, 
           code: formattedCode,
-          rawCode: pairingCode
+          rawCode: pairingCode,
+          countryCode: phone.substring(0, 3),
+          fullNumber: phone
         });
       } else {
         return res.json({ 
@@ -231,10 +220,15 @@ app.post("/pair", async (req, res) => {
           success: false, 
           error: "Request timeout. Please try again." 
         });
+      } else if (pairError.message?.includes("code")) {
+        return res.json({ 
+          success: false, 
+          error: "WhatsApp rejected the request. Please verify your phone number format." 
+        });
       } else {
         return res.json({ 
           success: false, 
-          error: "Failed to generate code: " + pairError.message 
+          error: "Failed to generate code. Please try with a different number." 
         });
       }
     }
@@ -271,7 +265,6 @@ app.post("/reset", (req, res) => {
     pairingCode = null;
     isConnected = false;
     commandHandler = null;
-    qrCode = null;
     
     // Restart fresh
     setTimeout(() => startWhatsApp(), 2000);
@@ -285,19 +278,86 @@ app.post("/reset", (req, res) => {
   }
 });
 
-// Get QR code for pairing
-app.get("/qr", (req, res) => {
-  if (qrCode) {
-    res.json({ success: true, qr: qrCode });
-  } else {
-    res.json({ success: false, message: "No QR available" });
-  }
+// Reset page
+app.get("/reset-page", (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Reset Bot Session</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 40px; text-align: center; }
+        button { padding: 15px 30px; background: #dc3545; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #c82333; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .back { display: block; margin-top: 20px; color: #667eea; }
+      </style>
+    </head>
+    <body>
+      <h1>Reset Bot Session</h1>
+      <p>Use this if pairing fails or you want to connect with a different number</p>
+      <button onclick="resetSession()">Reset Session</button>
+      <a href="/" class="back">← Back to Pairing</a>
+      <div id="result"></div>
+      <script>
+        async function resetSession() {
+          const result = document.getElementById('result');
+          result.style.display = 'none';
+          
+          try {
+            const response = await fetch('/reset', { method: 'POST' });
+            const data = await response.json();
+            
+            result.textContent = data.message || (data.success ? 'Success!' : 'Failed');
+            result.className = data.success ? 'success' : 'error';
+            result.style.display = 'block';
+            
+            if (data.success) {
+              setTimeout(() => {
+                window.location.href = '/';
+              }, 2000);
+            }
+          } catch (error) {
+            result.textContent = 'Error: ' + error.message;
+            result.className = 'error';
+            result.style.display = 'block';
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+// Country codes info
+app.get("/country-codes", (req, res) => {
+  res.json({
+    common_codes: [
+      { country: "USA/Canada", code: "1", example: "15551234567" },
+      { country: "UK", code: "44", example: "447912345678" },
+      { country: "India", code: "91", example: "919876543210" },
+      { country: "Nigeria", code: "234", example: "2348123456789" },
+      { country: "Kenya", code: "254", example: "254712345678" },
+      { country: "Ghana", code: "233", example: "233501234567" },
+      { country: "South Africa", code: "27", example: "27711234567" },
+      { country: "Egypt", code: "20", example: "201012345678" },
+      { country: "Pakistan", code: "92", example: "923001234567" },
+      { country: "Indonesia", code: "62", example: "62812345678" },
+      { country: "Philippines", code: "63", example: "639171234567" },
+      { country: "Brazil", code: "55", example: "5511991234567" },
+      { country: "Mexico", code: "52", example: "5215512345678" }
+    ],
+    instructions: "Enter your FULL phone number including country code. Remove any leading zeros."
+  });
 });
 
 // Start server
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 Web interface available`);
+  console.log(`🌐 Web interface available worldwide`);
+  console.log(`📱 Supports all country codes`);
   
   // Check for existing session
   const hasSession = fs.existsSync("./auth/creds.json");
@@ -312,5 +372,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 // Keep Render alive
 setInterval(() => {
-  console.log("💓 Keep-alive ping");
+  if (isConnected) {
+    console.log("💓 Heartbeat: Bot is alive");
+  }
 }, 300000); // 5 minutes
