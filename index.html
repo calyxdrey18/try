@@ -8,7 +8,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: Arial, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
       display: flex;
@@ -21,37 +21,34 @@
       width: 100%;
       max-width: 500px;
       background: white;
-      border-radius: 20px;
-      padding: 40px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
     }
     
     .header {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 25px;
     }
     
     h1 {
       color: #333;
-      font-size: 32px;
-      margin-bottom: 10px;
-      background: linear-gradient(45deg, #667eea, #764ba2);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      font-size: 28px;
+      margin-bottom: 5px;
     }
     
     .subtitle {
       color: #666;
       font-size: 14px;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
     }
     
     .status {
       display: inline-block;
       background: #10b981;
       color: white;
-      padding: 8px 20px;
-      border-radius: 20px;
+      padding: 5px 15px;
+      border-radius: 15px;
       font-size: 12px;
       font-weight: bold;
     }
@@ -62,11 +59,10 @@
     
     input {
       width: 100%;
-      padding: 15px;
-      border: 2px solid #e2e8f0;
-      border-radius: 10px;
+      padding: 12px 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
       font-size: 16px;
-      transition: border 0.3s;
     }
     
     input:focus {
@@ -74,122 +70,119 @@
       border-color: #667eea;
     }
     
-    input::placeholder {
-      color: #94a3b8;
-    }
-    
     .btn {
       width: 100%;
-      padding: 15px;
-      background: linear-gradient(45deg, #667eea, #764ba2);
+      padding: 12px;
+      background: #667eea;
       color: white;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       font-size: 16px;
       font-weight: bold;
       cursor: pointer;
-      transition: transform 0.3s;
+      margin-bottom: 10px;
     }
     
     .btn:hover {
-      transform: translateY(-2px);
+      background: #5a67d8;
     }
     
     .btn:disabled {
-      opacity: 0.6;
+      background: #ccc;
       cursor: not-allowed;
-      transform: none;
+    }
+    
+    .btn-reset {
+      background: #e53e3e;
+    }
+    
+    .btn-reset:hover {
+      background: #c53030;
     }
     
     .loader {
-      display: none;
       text-align: center;
       margin: 20px 0;
       color: #667eea;
-      font-weight: bold;
+      display: none;
     }
     
     .code-display {
-      margin: 30px 0;
-      padding: 30px;
-      background: #f8fafc;
-      border-radius: 15px;
+      margin: 25px 0;
+      padding: 20px;
+      background: #f7fafc;
+      border-radius: 10px;
       text-align: center;
       display: none;
     }
     
     .code {
       font-family: monospace;
-      font-size: 40px;
+      font-size: 32px;
       font-weight: bold;
-      letter-spacing: 5px;
-      color: #667eea;
-      margin-bottom: 20px;
+      letter-spacing: 3px;
+      color: #2d3748;
+      margin-bottom: 15px;
     }
     
     .copy-btn {
-      background: #10b981;
+      background: #38a169;
       color: white;
       border: none;
-      padding: 10px 25px;
-      border-radius: 8px;
+      padding: 8px 20px;
+      border-radius: 6px;
       cursor: pointer;
-      font-weight: bold;
-    }
-    
-    .copy-btn:hover {
-      background: #0da271;
     }
     
     .error {
-      background: #fee2e2;
-      color: #dc2626;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 20px;
+      background: #fed7d7;
+      color: #9b2c2c;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 15px;
       display: none;
-      text-align: center;
     }
     
     .instructions {
-      margin-top: 30px;
+      margin-top: 25px;
       padding-top: 20px;
       border-top: 1px solid #e2e8f0;
     }
     
     .instructions h3 {
-      color: #475569;
+      color: #4a5568;
       font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 15px;
+      margin-bottom: 10px;
     }
     
     .step {
-      display: flex;
-      margin-bottom: 15px;
-      align-items: flex-start;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #718096;
     }
     
     .step-number {
+      display: inline-block;
       background: #667eea;
       color: white;
-      width: 25px;
-      height: 25px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      text-align: center;
+      line-height: 20px;
+      margin-right: 10px;
       font-size: 12px;
-      font-weight: bold;
-      margin-right: 15px;
-      flex-shrink: 0;
     }
     
-    .step-text {
-      color: #475569;
+    .reset-link {
+      text-align: center;
+      margin-top: 15px;
+    }
+    
+    .reset-link a {
+      color: #667eea;
+      text-decoration: none;
       font-size: 14px;
-      line-height: 1.5;
     }
   </style>
 </head>
@@ -198,7 +191,7 @@
     <div class="header">
       <h1>Viral-Bot Mini</h1>
       <p class="subtitle">Advanced WhatsApp Bot with Group Management</p>
-      <div class="status">BOT READY</div>
+      <div class="status" id="status">READY FOR PAIRING</div>
     </div>
     
     <div class="error" id="error"></div>
@@ -214,7 +207,9 @@
     
     <button class="btn" id="pairBtn">GENERATE WHATSAPP CODE</button>
     
-    <div class="loader" id="loader">Generating code...</div>
+    <div class="loader" id="loader">
+      <div>Generating pairing code...</div>
+    </div>
     
     <div class="code-display" id="codeDisplay">
       <div class="code" id="codeValue">---- ----</div>
@@ -222,19 +217,23 @@
     </div>
     
     <div class="instructions">
-      <h3>How to Connect</h3>
+      <h3>How to Connect:</h3>
       <div class="step">
-        <div class="step-number">1</div>
-        <div class="step-text">Open WhatsApp → Settings → Linked Devices</div>
+        <span class="step-number">1</span>
+        Open WhatsApp → Settings → Linked Devices
       </div>
       <div class="step">
-        <div class="step-number">2</div>
-        <div class="step-text">Select "Link with phone number instead"</div>
+        <span class="step-number">2</span>
+        Select "Link with phone number instead"
       </div>
       <div class="step">
-        <div class="step-number">3</div>
-        <div class="step-text">Enter your number and paste the 8-digit code</div>
+        <span class="step-number">3</span>
+        Enter your number and paste the 8-digit code
       </div>
+    </div>
+    
+    <div class="reset-link">
+      <a href="#" onclick="resetSession()">Having issues? Reset Session</a>
     </div>
   </div>
   
@@ -246,17 +245,33 @@
     const copyBtn = document.getElementById('copyBtn');
     const error = document.getElementById('error');
     const phoneInput = document.getElementById('phone');
+    const status = document.getElementById('status');
+    
+    // Format phone number as user types
+    phoneInput.addEventListener('input', function(e) {
+      let value = e.target.value.replace(/\D/g, '');
+      if (value.length > 0 && !value.startsWith('234')) {
+        value = '234' + value;
+      }
+      e.target.value = value.substring(0, 13);
+    });
     
     async function generateCode() {
       const phone = phoneInput.value.trim();
       
+      // Validation
       if (!phone) {
         showError('Please enter your phone number');
         return;
       }
       
-      if (phone.length < 10) {
-        showError('Please enter a valid phone number');
+      if (phone.length < 11 || phone.length > 13) {
+        showError('Phone number should be 11-13 digits (e.g., 2348123456789)');
+        return;
+      }
+      
+      if (!phone.startsWith('234')) {
+        showError('Phone must start with 234 (Nigeria)');
         return;
       }
       
@@ -265,12 +280,14 @@
       loader.style.display = 'block';
       codeDisplay.style.display = 'none';
       error.style.display = 'none';
+      status.textContent = 'GENERATING CODE...';
+      status.style.background = '#f6ad55';
       
       try {
         const response = await fetch('/pair', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone })
+          body: JSON.stringify({ phone: phone })
         });
         
         const data = await response.json();
@@ -280,11 +297,20 @@
           codeValue.textContent = data.code;
           codeDisplay.style.display = 'block';
           copyBtn.disabled = false;
+          status.textContent = 'CODE READY';
+          status.style.background = '#10b981';
+          
+          // Store raw code for copying
+          copyBtn.dataset.rawCode = data.rawCode || data.code.replace(/\s/g, '');
         } else {
           showError(data.error || 'Failed to generate code');
+          status.textContent = 'ERROR';
+          status.style.background = '#e53e3e';
         }
       } catch (err) {
         showError('Connection error. Please try again.');
+        status.textContent = 'CONNECTION ERROR';
+        status.style.background = '#e53e3e';
       } finally {
         pairBtn.disabled = false;
         loader.style.display = 'none';
@@ -297,19 +323,40 @@
       
       setTimeout(() => {
         error.style.display = 'none';
-      }, 3000);
+      }, 5000);
     }
     
     function copyCode() {
-      const code = codeValue.textContent.replace(/\s/g, '');
+      const rawCode = copyBtn.dataset.rawCode || codeValue.textContent.replace(/\s/g, '');
       
-      navigator.clipboard.writeText(code).then(() => {
+      navigator.clipboard.writeText(rawCode).then(() => {
         copyBtn.textContent = 'COPIED!';
         
         setTimeout(() => {
           copyBtn.textContent = 'COPY CODE';
         }, 2000);
       });
+    }
+    
+    async function resetSession() {
+      if (!confirm('Reset bot session? This will disconnect the bot.')) return;
+      
+      try {
+        const response = await fetch('/reset', {
+          method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Session reset successfully! Please refresh the page.');
+          window.location.reload();
+        } else {
+          alert('Reset failed: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error resetting session');
+      }
     }
     
     // Event listeners
@@ -321,8 +368,29 @@
       if (e.key === 'Enter') generateCode();
     });
     
-    // Focus input
+    // Auto-focus
     phoneInput.focus();
+    
+    // Check status on load
+    async function checkStatus() {
+      try {
+        const response = await fetch('/status');
+        const data = await response.json();
+        
+        if (data.connected) {
+          status.textContent = 'CONNECTED';
+          status.style.background = '#10b981';
+        } else if (data.hasAuth) {
+          status.textContent = 'RESTORING...';
+          status.style.background = '#f6ad55';
+        }
+      } catch (err) {
+        console.log('Status check failed');
+      }
+    }
+    
+    // Initial status check
+    setTimeout(checkStatus, 1000);
   </script>
 </body>
 </html>

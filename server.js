@@ -1,179 +1,316 @@
-// server.js
+// server.js - FIXED PAIRING VERSION
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const {
   default: makeWASocket,
   useMultiFileAuthState,
-  fetchLatestBaileysVersion,
   DisconnectReason,
   Browsers
 } = require("@whiskeysockets/baileys");
-const pino = require("pino");
 const CommandHandler = require("./commands");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware
 app.use(express.json());
 app.use(express.static(__dirname));
 
-app.get("/", (_, res) =>
-  res.sendFile(path.join(__dirname, "index.html"))
-);
+// Serve frontend
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 
-/* ===================== GLOBAL STATE ===================== */
+// Global variables
 let sock = null;
 let pairingCode = null;
-let isStarting = false;
 let commandHandler = null;
+let isConnected = false;
+let qrCode = null;
 
-/* ===================== WHATSAPP CORE ===================== */
-async function startWhatsApp(phoneForPair = null) {
-  if (isStarting) return;
-  isStarting = true;
+// Health check for Render
+app.get("/health", (req, res) => {
+  res.json({ 
+    status: "running", 
+    connected: isConnected,
+    hasPairingCode: !!pairingCode
+  });
+});
 
+// Status endpoint
+app.get("/status", (req, res) => {
+  res.json({
+    connected: isConnected,
+    pairingCode: pairingCode || "none",
+    hasAuth: fs.existsSync("./auth/creds.json"),
+    qrCode: qrCode ? "available" : "none"
+  });
+});
+
+// Start WhatsApp with QR support
+async function startWhatsApp() {
   try {
-    console.log("🔄 Initializing WhatsApp connection...");
+    console.log("🚀 Starting WhatsApp connection...");
     
     const { state, saveCreds } = await useMultiFileAuthState("./auth");
-    const { version } = await fetchLatestBaileysVersion();
-
+    
     sock = makeWASocket({
-      version,
       auth: state,
-      logger: pino({ level: "silent" }),
+      printQRInTerminal: true,
       browser: Browsers.ubuntu("Chrome"),
-      printQRInTerminal: true
+      logger: { level: "silent" }
     });
 
     // Initialize command handler
     commandHandler = new CommandHandler(sock);
-    console.log("✅ Command handler initialized");
+    console.log("✅ Command handler ready");
 
+    // Save credentials
     sock.ev.on("creds.update", saveCreds);
 
-    sock.ev.on("connection.update", (u) => {
-      const { connection, lastDisconnect, qr } = u;
-
+    // Connection updates
+    sock.ev.on("connection.update", (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      
       if (qr) {
-        console.log("📱 QR Code generated for pairing");
+        qrCode = qr;
+        console.log("📱 New QR Code generated");
       }
 
       if (connection === "open") {
-        console.log("✅ WhatsApp Connected Successfully");
+        isConnected = true;
+        qrCode = null;
         pairingCode = null;
-        isStarting = false;
+        console.log("✅ WhatsApp connected successfully!");
         
-        // Send startup notification
+        // Send welcome message
         try {
-          const botJid = sock.user.id;
-          sock.sendMessage(botJid, {
-            text: "🤖 *Viral-Bot Mini Started*\n\nBot is now online and ready!\nType `.menu` to see all commands."
-          });
-        } catch (e) {
-          console.log("Startup message error:", e.message);
+          if (sock.user?.id) {
+            sock.sendMessage(sock.user.id, {
+              text: "🤖 *Viral-Bot Mini Started!*\n\nBot is now online and ready!\nUse `.menu` to see all commands."
+            });
+          }
+        } catch (error) {
+          console.log("Note: Could not send startup message");
         }
       }
 
       if (connection === "close") {
-        const shouldReconnect =
-          lastDisconnect?.error?.output?.statusCode !==
-          DisconnectReason.loggedOut;
-
-        console.log("❌ Disconnected. Reconnect:", shouldReconnect);
-        isStarting = false;
+        isConnected = false;
+        qrCode = null;
+        pairingCode = null;
+        
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        
         if (shouldReconnect) {
-          console.log("🔄 Reconnecting in 5 seconds...");
-          setTimeout(() => startWhatsApp(), 5000);
+          console.log("🔄 Reconnecting in 10 seconds...");
+          setTimeout(() => startWhatsApp(), 10000);
+        } else {
+          console.log("❌ Logged out. Need new pairing.");
         }
       }
     });
 
-    // Pairing code request
-    if (phoneForPair && sock.authState?.creds && !sock.authState.creds.registered) {
-      setTimeout(async () => {
-        try {
-          pairingCode = await sock.requestPairingCode(phoneForPair);
-          console.log("🔐 Pairing Code:", pairingCode);
-        } catch (error) {
-          console.error("❌ Pairing failed:", error.message);
-          pairingCode = "FAILED";
-        }
-      }, 3000);
-    }
-
-    /* ===================== MESSAGE HANDLER ===================== */
-    sock.ev.on("messages.upsert", async ({ messages, type }) => {
-      if (type !== "notify") return;
-      
-      const m = messages[0];
-      if (!m?.message || m.key?.fromMe) return;
-
+    // Message handler
+    sock.ev.on("messages.upsert", async (data) => {
       try {
-        await commandHandler.handleMessage(m);
+        const m = data.messages?.[0];
+        if (!m?.message || m.key?.fromMe) return;
+        
+        if (commandHandler) {
+          await commandHandler.handleMessage(m);
+        }
       } catch (error) {
-        console.error("❌ Error handling message:", error.message);
+        console.log("Message handling error:", error.message);
       }
     });
 
-  } catch (e) {
-    console.error("❌ CRITICAL ERROR:", e);
-    isStarting = false;
+  } catch (error) {
+    console.error("Failed to start WhatsApp:", error);
     
-    // Attempt restart
+    // Retry after delay
     setTimeout(() => {
-      console.log("🔄 Attempting to restart...");
+      console.log("🔄 Retrying connection...");
       startWhatsApp();
-    }, 10000);
+    }, 15000);
   }
 }
 
-/* ===================== PAIR API ===================== */
+// PAIRING ENDPOINT - FIXED
 app.post("/pair", async (req, res) => {
-  let phone = String(req.body.phone || "").replace(/\D/g, "");
-  if (!phone)
-    return res.json({ success: false, error: "Invalid phone number" });
-
-  pairingCode = null;
-  await startWhatsApp(phone);
-
-  let t = 0;
-  const wait = setInterval(() => {
-    t++;
-    if (pairingCode) {
-      clearInterval(wait);
-      return res.json({ success: true, code: pairingCode });
-    }
-    if (t > 30) {
-      clearInterval(wait);
+  try {
+    let phone = String(req.body.phone || "").trim();
+    
+    // Basic validation
+    if (!phone || phone.length < 10) {
       return res.json({ 
         success: false, 
-        error: "Timeout. Please check phone number and try again." 
+        error: "Enter a valid phone number (e.g., 2348123456789)" 
       });
     }
-  }, 1000);
-});
 
-/* ===================== HEALTH CHECK ===================== */
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    bot_connected: sock ? "connected" : "disconnected",
-    pairing_code: pairingCode || "none",
-    uptime: process.uptime()
-  });
-});
-
-/* ===================== START SERVER ===================== */
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Viral-Bot Mini running on port ${PORT}`);
-  console.log(`🌐 Web Interface: http://localhost:${PORT}`);
-  
-  if (fs.existsSync("./auth/creds.json")) {
-    console.log("🔄 Restoring previous session...");
-    setTimeout(() => startWhatsApp(), 2000);
-  } else {
-    console.log("📱 No previous session found. Ready for pairing.");
+    // Clean phone number - remove all non-digits
+    phone = phone.replace(/\D/g, '');
+    
+    // Ensure it starts with country code if Nigerian
+    if (phone.length === 10 && phone.startsWith('0')) {
+      phone = '234' + phone.substring(1);
+    } else if (phone.length === 11 && phone.startsWith('0')) {
+      phone = '234' + phone.substring(1);
+    }
+    
+    console.log(`📱 Processing pairing for: ${phone}`);
+    
+    // Check if we have an active socket
+    if (!sock) {
+      console.log("Starting fresh WhatsApp instance...");
+      await startWhatsApp();
+      
+      // Wait for initialization
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+    
+    // Wait a bit more if still not ready
+    if (!sock) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    if (!sock) {
+      return res.json({ 
+        success: false, 
+        error: "WhatsApp not initialized. Please try again." 
+      });
+    }
+    
+    // Check if already registered
+    const isRegistered = sock.authState?.creds?.registered;
+    
+    if (isRegistered) {
+      // If already registered, we need to reset
+      console.log("Already registered, need to reset first");
+      return res.json({ 
+        success: false, 
+        error: "Bot is already connected. Please reset first." 
+      });
+    }
+    
+    // Request pairing code
+    console.log("Requesting pairing code...");
+    
+    try {
+      pairingCode = await sock.requestPairingCode(phone);
+      console.log(`✅ Pairing code generated: ${pairingCode}`);
+      
+      if (pairingCode && pairingCode.length === 8) {
+        // Format code for display: XXXX-XXXX
+        const formattedCode = pairingCode.replace(/(\d{4})(\d{4})/, '$1 $2');
+        
+        return res.json({ 
+          success: true, 
+          code: formattedCode,
+          rawCode: pairingCode
+        });
+      } else {
+        return res.json({ 
+          success: false, 
+          error: "Invalid pairing code received. Please try again." 
+        });
+      }
+    } catch (pairError) {
+      console.error("Pairing error:", pairError);
+      
+      // Check specific error
+      if (pairError.message?.includes("registered")) {
+        return res.json({ 
+          success: false, 
+          error: "This number is already registered. Please use a different number or reset." 
+        });
+      } else if (pairError.message?.includes("timeout")) {
+        return res.json({ 
+          success: false, 
+          error: "Request timeout. Please try again." 
+        });
+      } else {
+        return res.json({ 
+          success: false, 
+          error: "Failed to generate code: " + pairError.message 
+        });
+      }
+    }
+    
+  } catch (error) {
+    console.error("Pair endpoint error:", error);
+    return res.json({ 
+      success: false, 
+      error: "Server error. Please refresh and try again." 
+    });
   }
 });
+
+// Reset endpoint
+app.post("/reset", (req, res) => {
+  try {
+    console.log("🔄 Resetting bot session...");
+    
+    // Close existing connection
+    if (sock) {
+      try {
+        sock.end();
+      } catch (e) {}
+      sock = null;
+    }
+    
+    // Delete auth directory
+    if (fs.existsSync("./auth")) {
+      fs.rmSync("./auth", { recursive: true, force: true });
+      console.log("✅ Auth directory removed");
+    }
+    
+    // Reset state
+    pairingCode = null;
+    isConnected = false;
+    commandHandler = null;
+    qrCode = null;
+    
+    // Restart fresh
+    setTimeout(() => startWhatsApp(), 2000);
+    
+    res.json({ 
+      success: true, 
+      message: "Session reset successfully. You can now pair again." 
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get QR code for pairing
+app.get("/qr", (req, res) => {
+  if (qrCode) {
+    res.json({ success: true, qr: qrCode });
+  } else {
+    res.json({ success: false, message: "No QR available" });
+  }
+});
+
+// Start server
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌐 Web interface available`);
+  
+  // Check for existing session
+  const hasSession = fs.existsSync("./auth/creds.json");
+  
+  if (hasSession) {
+    console.log("🔑 Found existing session, restoring...");
+    setTimeout(() => startWhatsApp(), 2000);
+  } else {
+    console.log("📱 No existing session. Ready for pairing.");
+  }
+});
+
+// Keep Render alive
+setInterval(() => {
+  console.log("💓 Keep-alive ping");
+}, 300000); // 5 minutes
