@@ -34,48 +34,29 @@ async function startWhatsApp(phoneForPair = null) {
   isStarting = true;
 
   try {
-    console.log("🔄 Initializing WhatsApp connection...");
-    
     const { state, saveCreds } = await useMultiFileAuthState("./auth");
     const { version } = await fetchLatestBaileysVersion();
 
     sock = makeWASocket({
       version,
       auth: state,
-      logger: pino({ level: "error" }),
+      logger: pino({ level: "silent" }),
       browser: Browsers.ubuntu("Chrome"),
-      printQRInTerminal: true,
-      connectTimeoutMs: 60000,
-      keepAliveIntervalMs: 10000
+      printQRInTerminal: false
     });
 
     // Initialize command handler
     commandHandler = new CommandHandler(sock);
-    console.log("✅ Command handler initialized");
 
     sock.ev.on("creds.update", saveCreds);
 
     sock.ev.on("connection.update", (u) => {
-      const { connection, lastDisconnect, qr } = u;
-
-      if (qr) {
-        console.log("📱 QR Code generated for pairing");
-      }
+      const { connection, lastDisconnect } = u;
 
       if (connection === "open") {
-        console.log("✅ WhatsApp Connected Successfully");
+        console.log("✅ WhatsApp Connected");
         pairingCode = null;
         isStarting = false;
-        
-        // Send startup notification
-        try {
-          const botJid = sock.user.id;
-          sock.sendMessage(botJid, {
-            text: "🤖 *Viral-Bot Mini Started*\n\nBot is now online and ready!\nType `.menu` to see all commands."
-          });
-        } catch (e) {
-          console.log("Startup message error:", e.message);
-        }
       }
 
       if (connection === "close") {
@@ -85,10 +66,7 @@ async function startWhatsApp(phoneForPair = null) {
 
         console.log("❌ Disconnected. Reconnect:", shouldReconnect);
         isStarting = false;
-        if (shouldReconnect) {
-          console.log("🔄 Reconnecting in 5 seconds...");
-          setTimeout(() => startWhatsApp(), 5000);
-        }
+        if (shouldReconnect) startWhatsApp();
       }
     });
 
@@ -98,55 +76,27 @@ async function startWhatsApp(phoneForPair = null) {
         try {
           pairingCode = await sock.requestPairingCode(phoneForPair);
           console.log("🔐 Pairing Code:", pairingCode);
-        } catch (error) {
-          console.error("❌ Pairing failed:", error.message);
+        } catch {
           pairingCode = "FAILED";
         }
       }, 3000);
     }
 
     /* ===================== MESSAGE HANDLER ===================== */
-    sock.ev.on("messages.upsert", async ({ messages, type }) => {
-      if (type !== "notify") return;
-      
+    sock.ev.on("messages.upsert", async ({ messages }) => {
       const m = messages[0];
       if (!m?.message) return;
 
       try {
         await commandHandler.handleMessage(m);
       } catch (error) {
-        console.error("❌ Error handling message:", error.message);
-        
-        // Send error notification
-        try {
-          await sock.sendMessage(m.key.remoteJid, {
-            text: "❌ *Error Processing Command*\n\nPlease try again or contact support."
-          });
-        } catch (e) {
-          console.error("Failed to send error message:", e.message);
-        }
-      }
-    });
-
-    // Connection errors
-    sock.ev.on("connection.update", (update) => {
-      if (update.connection === "close") {
-        const lastDisconnect = update.lastDisconnect;
-        if (lastDisconnect?.error) {
-          console.error("Connection error:", lastDisconnect.error);
-        }
+        console.error("Error handling message:", error);
       }
     });
 
   } catch (e) {
-    console.error("❌ CRITICAL ERROR:", e);
+    console.error("CRITICAL:", e);
     isStarting = false;
-    
-    // Attempt restart
-    setTimeout(() => {
-      console.log("🔄 Attempting to restart...");
-      startWhatsApp();
-    }, 10000);
   }
 }
 
@@ -154,7 +104,7 @@ async function startWhatsApp(phoneForPair = null) {
 app.post("/pair", async (req, res) => {
   let phone = String(req.body.phone || "").replace(/\D/g, "");
   if (!phone)
-    return res.json({ success: false, error: "Invalid phone number" });
+    return res.json({ success: false, error: "Invalid phone" });
 
   pairingCode = null;
   await startWhatsApp(phone);
@@ -166,35 +116,15 @@ app.post("/pair", async (req, res) => {
       clearInterval(wait);
       return res.json({ success: true, code: pairingCode });
     }
-    if (t > 30) {
+    if (t > 25) {
       clearInterval(wait);
-      return res.json({ 
-        success: false, 
-        error: "Timeout. Please check phone number and try again." 
-      });
+      return res.json({ success: false, error: "Timeout" });
     }
   }, 1000);
 });
 
-/* ===================== HEALTH CHECK ===================== */
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    bot_connected: sock ? "connected" : "disconnected",
-    pairing_code: pairingCode || "none",
-    uptime: process.uptime()
-  });
-});
-
-/* ===================== START SERVER ===================== */
+/* ===================== START ===================== */
 app.listen(PORT, () => {
   console.log(`🚀 Viral-Bot Mini running on port ${PORT}`);
-  console.log(`🌐 Web Interface: http://localhost:${PORT}`);
-  
-  if (fs.existsSync("./auth/creds.json")) {
-    console.log("🔄 Restoring previous session...");
-    startWhatsApp();
-  } else {
-    console.log("📱 No previous session found. Ready for pairing.");
-  }
+  if (fs.existsSync("./auth/creds.json")) startWhatsApp();
 });

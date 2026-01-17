@@ -18,144 +18,91 @@ function getNewsletterContext() {
 }
 
 function createStyledMessage(title, content) {
-  const border = "═".repeat(30);
-  return `┌──────────────────────────────────────────────┐
-│ 🔥 ${title}
-├──────────────────────────────────────────────┤
+  const border = "─".repeat(28);
+  return `╔═─── 📢 ${title} ───═╗
+
 ${content}
-└──────────────────────────────────────────────┘`;
+
+╚═${border}═╝`;
 }
 
 function getCommandList() {
-  return `╔══════════════════════════════════════════╗
-║              🤖 VIRAL-BOT MINI               ║
-╠══════════════════════════════════════════╣
-║                                          ║
-║  📋 *GENERAL COMMANDS*                   ║
-║  • .help    - Show help menu             ║
-║  • .info    - Get bot information        ║
-║  • .stats   - Display bot statistics     ║
-║  • .about   - About bot & developer      ║
-║  • .ping    - Check bot responsiveness   ║
-║  • .alive   - Check if bot is online     ║
-║  • .menu    - Full command menu          ║
-║                                          ║
-║  👑 *GROUP MANAGEMENT*                   ║
-║  • .welcome    - Toggle welcome messages ║
-║  • .promote @user - Make user admin      ║
-║  • .demote @user  - Remove admin rights  ║
-║  • .kick @user    - Remove user          ║
-║  • .setdesc text - Change description    ║
-║  • .setpp        - Change group photo    ║
-║  • .mute         - Close group           ║
-║  • .unmute       - Open group            ║
-║  • .antilink     - Toggle anti-link      ║
-║  • .antisticker  - Toggle anti-sticker   ║
-║  • .antiaudio    - Toggle anti-audio     ║
-║  • .tagall       - Mention all members   ║
-║                                          ║
-║  📢 *Follow our channel for updates!*    ║
-║  ${CHANNEL_LINK} ║
-║                                          ║
-╚══════════════════════════════════════════╝`;
+  return `╔═─── 📢 VIRAL-BOT MINI ───═╗
+
+🤖  BOT COMMANDS
+────────────────────────
+
+🎯 *GENERAL COMMANDS*
+█ .help    - Show this help menu
+█ .info    - Get bot information
+█ .stats   - Display bot statistics
+█ .about   - About bot & developer
+█ .ping    - Check bot responsiveness
+█ .alive   - Check if bot is online
+█ .menu    - Full command menu
+
+👥 *GROUP MANAGEMENT*
+█ .welcome    - Toggle welcome messages
+█ .promote @user  - Make user admin
+█ .demote @user   - Remove admin rights
+█ .kick @user     - Remove user from group
+█ .setdesc    - Change group description
+█ .setpp      - Change group profile picture
+█ .mute       - Close group (admin only)
+█ .unmute     - Open group (admin only)
+█ .antilink   - Toggle anti-link protection
+█ .antisticker - Toggle anti-sticker
+█ .antiaudio  - Toggle anti-audio
+█ .tagall     - Tag all group members
+
+🔔 Follow our channel for updates!
+
+╚═────────────────────────═╝`;
 }
 
 function getBotInfo() {
   return createStyledMessage("BOT INFORMATION",
     `🤖 *Viral-Bot Mini*
-    
-📊 Version: 2.0.0
-✅ Status: ONLINE
-👨‍💻 Developer: Calyx Drey 
-⚙️ Platform: Node.js + Baileys
-⏱️ Uptime: 24/7 Active
+────────────────────
+Version: 2.0.0
+Status: ONLINE
+Developer: Calyx Drey 
+Platform: Node.js + Baileys
+Uptime: 24/7 Active
 
-💡 *Features:*
-• Group Management Tools
+💡 Features:
+• Group Management
 • Anti-Spam Protection
-• Media Filtering System
+• Media Filtering
 • Admin Controls
 • User Management
 
-📞 Support: @+263786624966
-📢 Channel: ${CHANNEL_LINK}`);
+📞 Support: @+263786624966`);
 }
 
 function getAbout() {
   return createStyledMessage("ABOUT DEVELOPER",
     `👨‍💻 *Developer Information*
-    
+────────────────────
 Name: Calyx Drey
 Experience: 3+ Years
 Specialization: WhatsApp Bots
 Languages: JavaScript, Python
 
-✨ *Bot Features*
-• 24/7 Uptime & Reliability
-• Secure & Private Operations
-• Fast Response Time
+🌟 *Bot Features*
+────────────────────
+• 24/7 Uptime
+• Secure & Private
+• Fast Response
 • Regular Updates
 • Multi-language Support
 
-📬 *Contact Information*
+🔗 *Contact*
+────────────────────
 Channel: ${CHANNEL_LINK}
 Support: Available 24/7
 
-Thank you for using Viral-Bot Mini! 🙏`);
-}
-
-function getAliveMessage() {
-  return `✅ *Viral-Bot Mini is Alive & Running*
-
-📊 *System Status*
-├─ Status: ONLINE
-├─ Uptime: 100%
-├─ Version: 2.0.0
-├─ Commands: 20+ Active
-└─ Response: < 1 second
-
-⚡ *Performance Metrics*
-├─ Memory: Optimized
-├─ Speed: High
-├─ Reliability: 99.9%
-└─ Updates: Automatic
-
-📢 Stay updated: ${CHANNEL_LINK}`;
-}
-
-function getMenuMessage() {
-  return `🤖 *Viral-Bot Mini Command Menu*
-
-Use any command by typing a dot (.) before it
-Example: .help, .alive, .menu
-
-📋 *Available Commands:*
-• .help    - Show all commands
-• .alive   - Check bot status
-• .menu    - Show this menu
-• .ping    - Test bot speed
-• .info    - Bot information
-• .stats   - Usage statistics
-• .about   - About developer
-
-👑 *Group Commands (Admin only):*
-• .promote @user - Make admin
-• .demote @user  - Remove admin
-• .kick @user    - Remove member
-• .tagall        - Mention everyone
-• .mute/.unmute  - Group settings
-
-🔧 *Group Settings (Admin only):*
-• .antilink    - Block links
-• .antisticker - Block stickers
-• .antiaudio   - Block audio
-• .setdesc     - Change description
-• .setpp       - Change group photo
-
-📢 *Stay Updated:*
-${CHANNEL_LINK}
-
-Type .help for detailed command list!`;
+Thank you for using Viral-Bot Mini! 🚀`);
 }
 
 module.exports = {
@@ -167,7 +114,5 @@ module.exports = {
   createStyledMessage,
   getCommandList,
   getBotInfo,
-  getAbout,
-  getAliveMessage,
-  getMenuMessage
+  getAbout
 };
