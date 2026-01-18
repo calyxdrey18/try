@@ -1,4 +1,4 @@
-
+// server.js
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -42,13 +42,7 @@ async function startWhatsApp(phoneForPair = null) {
       auth: state,
       logger: pino({ level: "silent" }),
       browser: Browsers.ubuntu("Chrome"),
-      printQRInTerminal: false,
-      syncFullHistory: false,
-      markOnlineOnConnect: true,
-      emitOwnEvents: true,
-      defaultQueryTimeoutMs: 60000,
-      connectTimeoutMs: 30000,
-      keepAliveIntervalMs: 10000
+      printQRInTerminal: false
     });
 
     // Initialize command handler
@@ -63,9 +57,6 @@ async function startWhatsApp(phoneForPair = null) {
         console.log("✅ WhatsApp Connected");
         pairingCode = null;
         isStarting = false;
-        
-        // Mark bot as online
-        sock.sendPresenceUpdate('available');
       }
 
       if (connection === "close") {
@@ -75,10 +66,7 @@ async function startWhatsApp(phoneForPair = null) {
 
         console.log("❌ Disconnected. Reconnect:", shouldReconnect);
         isStarting = false;
-        if (shouldReconnect) {
-          console.log("🔄 Reconnecting in 5 seconds...");
-          setTimeout(() => startWhatsApp(), 5000);
-        }
+        if (shouldReconnect) startWhatsApp();
       }
     });
 
@@ -100,23 +88,15 @@ async function startWhatsApp(phoneForPair = null) {
       if (!m?.message) return;
 
       try {
-        // Process message asynchronously
-        setTimeout(async () => {
-          try {
-            await commandHandler.handleMessage(m);
-          } catch (error) {
-            console.error("Error handling message:", error);
-          }
-        }, 500); // Small delay for more human-like behavior
+        await commandHandler.handleMessage(m);
       } catch (error) {
-        console.error("Error in message processing:", error);
+        console.error("Error handling message:", error);
       }
     });
 
   } catch (e) {
     console.error("CRITICAL:", e);
     isStarting = false;
-    setTimeout(() => startWhatsApp(), 10000);
   }
 }
 

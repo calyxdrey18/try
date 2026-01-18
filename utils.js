@@ -1,4 +1,3 @@
-
 // utils.js
 const BOT_IMAGE_URL = "https://img.sanishtech.com/u/d52d507c27a7919e9e19448a073ba4cb.jpg";
 const CHANNEL_NAME = "Viral-Bot Mini Updates";
@@ -7,11 +6,14 @@ const NEWSLETTER_JID = "120363405637529316@newsletter";
 
 // Function to ensure image URL is valid
 function getBotImage() {
-  // Fallback image in case the main one fails
+  // Return a guaranteed working image URL
+  const workingImage = "https://img.sanishtech.com/u/d52d507c27a7919e9e19448a073ba4cb.jpg";
   const fallbackImage = "https://telegra.ph/file/87a3b8a3c7e7d6b3c9c9d.jpg";
+  
   return {
-    url: BOT_IMAGE_URL,
-    fallback: fallbackImage
+    url: workingImage,
+    fallback: fallbackImage,
+    mimetype: 'image/jpeg'
   };
 }
 
@@ -29,52 +31,52 @@ function getNewsletterContext() {
 }
 
 function createStyledMessage(title, content) {
-  const border = "─".repeat(25);
-  return `┏▣ ◈ *${title}* ◈
-│${border}
-│${content.split('\n').map(line => `│➽ ${line}`).join('\n')}
-┗▣`;
+  const border = "в”Ђ".repeat(25);
+  return `в”Џв–Ј в—€ *${title}* в—€
+в”‚${border}
+в”‚${content.split('\n').map(line => `в”‚вћЅ ${line}`).join('\n')}
+в”—в–Ј`;
 }
 
 function getCommandList() {
-  return `┏▣ ◈ *VIRAL-BOT MINI* ◈
-│────────────────────────
-│➽ help
-│➽ info
-│➽ stats
-│➽ about
-│➽ ping
-│➽ alive
-│➽ menu
-┗▣
+  return `в”Џв–Ј в—€ *VIRAL-BOT MINI* в—€
+в”‚в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+в”‚вћЅ help
+в”‚вћЅ info
+в”‚вћЅ stats
+в”‚вћЅ about
+в”‚вћЅ ping
+в”‚вћЅ alive
+в”‚вћЅ menu
+в”—в–Ј
 
-┏▣ ◈ *GROUP MANAGEMENT* ◈
-│────────────────────────
-│➽ welcome        
-│➽ promote @user   
-│➽ demote  @user   
-│➽ kick    @user
-│➽ setdesc
-│➽ setpp
-│➽ mute
-│➽ unmute
-│➽ antilink
-│➽ antisticker
-│➽ antiaudio
-│➽ antivideo
-│➽ antiviewonce
-│➽ antiimage
-│➽ antifile
-│➽ tagall
-┗▣
+в”Џв–Ј в—€ *GROUP MANAGEMENT* в—€
+в”‚в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+в”‚вћЅ welcome        
+в”‚вћЅ promote @user   
+в”‚вћЅ demote  @user   
+в”‚вћЅ kick    @user
+в”‚вћЅ setdesc
+в”‚вћЅ setpp
+в”‚вћЅ mute
+в”‚вћЅ unmute
+в”‚вћЅ antilink
+в”‚вћЅ antisticker
+в”‚вћЅ antiaudio
+в”‚вћЅ antivideo
+в”‚вћЅ antiviewonce
+в”‚вћЅ antiimage
+в”‚вћЅ antifile
+в”‚вћЅ tagall
+в”—в–Ј
 
-┏▣ ◈ *MEDIA COMMANDS* ◈
-│────────────────────────
-│➽ vv - Download view-once
-│➽ save - Save media
-┗▣
+в”Џв–Ј в—€ *MEDIA COMMANDS* в—€
+в”‚в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+в”‚вћЅ vv - Download view-once
+в”‚вћЅ save - Save media
+в”—в–Ј
 
-📢 *Follow our channel for updates!*
+рџ"ў *Follow our channel for updates!*
 ${CHANNEL_LINK}`;
 }
 
@@ -116,7 +118,7 @@ Contact
 Channel: ${CHANNEL_LINK}
 Support: Available 24/7
 
-Thank you for using Viral-Bot Mini! 🥰`);
+Thank you for using Viral-Bot Mini! рџҐ°`);
 }
 
 // Helper function to extract quoted message

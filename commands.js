@@ -373,7 +373,10 @@ File from @${participant.split('@')[0] || 'User'} deleted.`),
       const botImage = getBotImage();
       
       return await this.sendReply(jid, {
-        image: { url: botImage.url },
+        image: { 
+          url: botImage.url,
+          mimetype: botImage.mimetype
+        },
         caption: createStyledMessage("SYSTEM STATUS", 
           `Viral-Bot Mini is Alive & Running
 Status: ONLINE
@@ -403,20 +406,28 @@ Commands: 25+ Active`)
       const botImage = getBotImage();
       
       return await this.sendReply(jid, {
-        image: { url: botImage.url },
+        image: { 
+          url: botImage.url,
+          mimetype: botImage.mimetype
+        },
         caption: getCommandList(),
         buttons: [{
           buttonId: "open_channel",
           buttonText: { displayText: "📢 View Channel" },
           type: 1
         }],
-        headerType: 1
+        headerType: 4 // Use 4 for image header with buttons
       }, originalMessage);
     } catch (error) {
       console.error("Error sending menu:", error);
       // Fallback to text if image fails
       return this.sendReply(jid, {
-        text: getCommandList()
+        text: getCommandList(),
+        buttons: [{
+          buttonId: "open_channel",
+          buttonText: { displayText: "📢 View Channel" },
+          type: 1
+        }]
       }, originalMessage);
     }
   }
