@@ -1,108 +1,79 @@
-import fs from "fs";
-import express from "express";
-import P from "pino";
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason
-} from "@whiskeysockets/baileys";
-import { commands } from "./commands.js";
-
-/* ================= BASIC SERVER ================= */
+const { default: makeWASocket, useMultiFileAuthState, Browsers, delay, DisconnectReason } = require("@whiskeysockets/baileys");
+const express = require("express");
+const path = require("path");
+const pino = require("pino");
+const fs = require("fs");
+const { handleCommand } = require("./commands");
 
 const app = express();
+const PORT = process.env.PORT || 10000;
+
 app.use(express.json());
-app.use(express.static("."));
+app.use(require("cors")());
 
-const PORT = process.env.PORT || 3000;
-
-/* ================= GLOBAL STATE ================= */
-
-let sock = null;
-let ready = false;
-
-/* ================= AUTH DIR ================= */
-
-if (!fs.existsSync("auth")) {
-  fs.mkdirSync("auth");
-}
-
-/* ================= START HTTP FIRST ================= */
-
-app.listen(PORT, () => {
-  console.log("🌐 Server running on", PORT);
-  startBot(); // START BOT ONLY AFTER SERVER IS LIVE
+// Serve the frontend
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
 });
 
-/* ================= BOT ================= */
+let sock;
+const authPath = "./auth_info";
 
 async function startBot() {
-  try {
-    const { state, saveCreds } = await useMultiFileAuthState("auth");
-
+    const { state, saveCreds } = await useMultiFileAuthState(authPath);
+    
     sock = makeWASocket({
-      auth: state,
-      logger: P({ level: "silent" }),
-      printQRInTerminal: false
+        auth: state,
+        printQRInTerminal: false, // Explicitly disabled
+        logger: pino({ level: "silent" }),
+        browser: Browsers.ubuntu("Chrome")
     });
 
     sock.ev.on("creds.update", saveCreds);
 
-    sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
-      if (connection === "open") {
-        ready = true;
-        console.log("✅ WhatsApp connected");
-      }
-
-      if (connection === "close") {
-        ready = false;
-        const code = lastDisconnect?.error?.output?.statusCode;
-        if (code !== DisconnectReason.loggedOut) {
-          setTimeout(startBot, 5000); // SAFE RECONNECT
+    sock.ev.on("connection.update", (update) => {
+        const { connection, lastDisconnect } = update;
+        if (connection === "close") {
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            if (shouldReconnect) startBot();
+        } else if (connection === "open") {
+            console.log("✅ Bot Connected Successfully!");
         }
-      }
     });
 
-    sock.ev.on("messages.upsert", async ({ messages }) => {
-      const m = messages?.[0];
-      if (!m?.message || m.key.fromMe) return;
-
-      const text =
-        m.message.conversation ||
-        m.message.extendedTextMessage?.text ||
-        "";
-
-      if (!text.startsWith(".")) return;
-
-      const cmd = text.slice(1).toLowerCase();
-      if (commands[cmd]) {
-        await sock.sendMessage(m.key.remoteJid, {
-          text: commands[cmd]
-        });
-      }
+    sock.ev.on("messages.upsert", async (m) => {
+        const msg = m.messages[0];
+        if (!msg.message || msg.key.fromMe) return;
+        await handleCommand(sock, msg);
     });
-
-  } catch (err) {
-    console.error("❌ Bot start failed, retrying...");
-    setTimeout(startBot, 5000);
-  }
 }
 
-/* ================= PAIR CODE API ================= */
+// Endpoint to get Pair Code
+app.get("/get-code", async (req, res) => {
+    let phoneNumber = req.query.number;
+    if (!phoneNumber) return res.status(400).json({ error: "Phone number is required" });
 
-app.post("/pair", async (req, res) => {
-  if (!sock || !ready) {
-    return res.json({ error: "Bot not ready yet" });
-  }
+    // Clean number: remove +, spaces, dashes
+    phoneNumber = phoneNumber.replace(/[^0-9]/g, "");
 
-  const { number } = req.body;
-  if (!number) {
-    return res.json({ error: "Number required" });
-  }
+    try {
+        if (!sock || !sock.user) {
+            // If bot isn't initialized or not logged in, we use a temp instance to get code
+            // Note: In a production multi-user scenario, logic here would be more complex.
+        }
+        
+        // Request pairing code from Baileys
+        // We delay slightly to ensure socket is ready
+        await delay(3000);
+        const code = await sock.requestPairingCode(phoneNumber);
+        res.json({ code });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to generate code. Try again." });
+    }
+});
 
-  try {
-    const code = await sock.requestPairingCode(number);
-    res.json({ pairCode: code });
-  } catch {
-    res.json({ error: "Pairing failed" });
-  }
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    startBot();
 });
