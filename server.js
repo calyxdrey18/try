@@ -1,3 +1,4 @@
+import fs from "fs";
 import express from "express";
 import P from "pino";
 import {
@@ -10,11 +11,15 @@ import { commands } from "./commands.js";
 const app = express();
 app.use(express.json());
 
+/* ===== ENSURE AUTH FOLDER EXISTS ===== */
+if (!fs.existsSync("./auth")) {
+  fs.mkdirSync("./auth");
+}
+
 let sock;
 let pairing = false;
 
-/* ================= START BOT ================= */
-
+/* ===== START WHATSAPP BOT ===== */
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("./auth");
 
@@ -26,17 +31,18 @@ async function startBot() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+  sock.ev.on("connection.update", (update) => {
+    const { connection, lastDisconnect } = update;
+
     if (connection === "open") {
-      console.log("✅ WhatsApp Connected");
+      console.log("✅ WhatsApp connected");
       pairing = false;
     }
 
     if (connection === "close") {
-      if (
-        lastDisconnect?.error?.output?.statusCode !==
-        DisconnectReason.loggedOut
-      ) {
+      const reason = lastDisconnect?.error?.output?.statusCode;
+      if (reason !== DisconnectReason.loggedOut) {
+        console.log("🔄 Reconnecting...");
         startBot();
       }
     }
@@ -44,7 +50,7 @@ async function startBot() {
 
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0];
-    if (!msg.message || msg.key.fromMe) return;
+    if (!msg?.message || msg.key.fromMe) return;
 
     const text =
       msg.message.conversation ||
@@ -66,34 +72,36 @@ async function startBot() {
 
 startBot();
 
-/* ================= PAIR CODE API ================= */
-
+/* ===== PAIR CODE API ===== */
 app.post("/pair", async (req, res) => {
-  const { number } = req.body;
-
-  if (!number) {
-    return res.json({ error: "Phone number is required" });
+  if (!sock) {
+    return res.json({ error: "Bot not ready yet" });
   }
 
-  if (!sock || pairing) {
-    return res.json({ error: "Bot not ready" });
+  const { number } = req.body;
+  if (!number) {
+    return res.json({ error: "Phone number required" });
+  }
+
+  if (pairing) {
+    return res.json({ error: "Pairing already in progress" });
   }
 
   try {
     pairing = true;
     const code = await sock.requestPairingCode(number);
     res.json({ pairCode: code });
-  } catch (err) {
+  } catch (e) {
     pairing = false;
     res.json({ error: "Failed to generate pair code" });
   }
 });
 
-/* ================= FRONTEND ================= */
-
+/* ===== FRONTEND ===== */
 app.use(express.static("."));
 
+/* ===== START SERVER ===== */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🌐 Web server running on port ${PORT}`);
+  console.log("🌐 Server running on port", PORT);
 });
