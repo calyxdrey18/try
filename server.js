@@ -1,149 +1,108 @@
-const express = require("express")
-const path = require("path")
-const Pino = require("pino")
-
-const {
-  default: makeWASocket,
+import fs from "fs";
+import express from "express";
+import P from "pino";
+import makeWASocket, {
   useMultiFileAuthState,
-  fetchLatestBaileysVersion
-} = require("@whiskeysockets/baileys")
+  DisconnectReason
+} from "@whiskeysockets/baileys";
+import { commands } from "./commands.js";
 
-const app = express()
-app.use(express.json())
+/* ================= BASIC SERVER ================= */
 
-let sock = null
-let pairCode = null
-let pairingInProgress = false
+const app = express();
+app.use(express.json());
+app.use(express.static("."));
 
-/* ================= BOT SETTINGS ================= */
+const PORT = process.env.PORT || 3000;
 
-let settings = {
-  antilink: false,
-  antisticker: false,
-  antiaudio: false
+/* ================= GLOBAL STATE ================= */
+
+let sock = null;
+let ready = false;
+
+/* ================= AUTH DIR ================= */
+
+if (!fs.existsSync("auth")) {
+  fs.mkdirSync("auth");
 }
 
-/* ================= START BOT ================= */
+/* ================= START HTTP FIRST ================= */
 
-async function startBot(phone) {
-  if (pairingInProgress) return
-  pairingInProgress = true
+app.listen(PORT, () => {
+  console.log("🌐 Server running on", PORT);
+  startBot(); // START BOT ONLY AFTER SERVER IS LIVE
+});
 
-  const { state, saveCreds } = await useMultiFileAuthState("auth")
-  const { version } = await fetchLatestBaileysVersion()
+/* ================= BOT ================= */
 
-  sock = makeWASocket({
-    version,
-    auth: state,
-    logger: Pino({ level: "silent" }),
-    printQRInTerminal: false
-  })
+async function startBot() {
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState("auth");
 
-  sock.ev.on("creds.update", saveCreds)
+    sock = makeWASocket({
+      auth: state,
+      logger: P({ level: "silent" }),
+      printQRInTerminal: false
+    });
 
-  // 🔥 WAIT A MOMENT, THEN REQUEST PAIR CODE
-  setTimeout(async () => {
-    if (!state.creds.registered) {
-      try {
-        pairCode = await sock.requestPairingCode(phone)
-        console.log("✅ PAIR CODE:", pairCode)
-      } catch (err) {
-        console.error("❌ Pair code error:", err.message)
-        pairCode = null
+    sock.ev.on("creds.update", saveCreds);
+
+    sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+      if (connection === "open") {
+        ready = true;
+        console.log("✅ WhatsApp connected");
       }
-    }
-  }, 1200)
 
-  sock.ev.on("connection.update", ({ connection }) => {
-    if (connection === "open") {
-      console.log("✅ WhatsApp CONNECTED")
-      pairingInProgress = false
-      pairCode = null
-    }
-  })
-
-  /* ================= MESSAGE HANDLER ================= */
-
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const msg = messages[0]
-    if (!msg.message || msg.key.fromMe) return
-
-    const from = msg.key.remoteJid
-    const isGroup = from.endsWith("@g.us")
-    const text =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      ""
-
-    if (isGroup) {
-      if (settings.antilink && text.includes("http")) {
-        await sock.sendMessage(from, { delete: msg.key })
+      if (connection === "close") {
+        ready = false;
+        const code = lastDisconnect?.error?.output?.statusCode;
+        if (code !== DisconnectReason.loggedOut) {
+          setTimeout(startBot, 5000); // SAFE RECONNECT
+        }
       }
-      if (settings.antisticker && msg.message.stickerMessage) {
-        await sock.sendMessage(from, { delete: msg.key })
+    });
+
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+      const m = messages?.[0];
+      if (!m?.message || m.key.fromMe) return;
+
+      const text =
+        m.message.conversation ||
+        m.message.extendedTextMessage?.text ||
+        "";
+
+      if (!text.startsWith(".")) return;
+
+      const cmd = text.slice(1).toLowerCase();
+      if (commands[cmd]) {
+        await sock.sendMessage(m.key.remoteJid, {
+          text: commands[cmd]
+        });
       }
-      if (settings.antiaudio && msg.message.audioMessage) {
-        await sock.sendMessage(from, { delete: msg.key })
-      }
-    }
+    });
 
-    if (!text.startsWith(".")) return
-    const cmd = text.toLowerCase()
-
-    if (cmd === ".mute" && isGroup) {
-      await sock.groupSettingUpdate(from, "announcement")
-      sock.sendMessage(from, { text: "🔇 Group muted" })
-    }
-
-    if (cmd === ".unmute" && isGroup) {
-      await sock.groupSettingUpdate(from, "not_announcement")
-      sock.sendMessage(from, { text: "🔊 Group unmuted" })
-    }
-
-    if (cmd === ".tagall" && isGroup) {
-      const meta = await sock.groupMetadata(from)
-      const members = meta.participants.map(p => p.id)
-      const tags = members.map(u => `@${u.split("@")[0]}`).join(" ")
-      sock.sendMessage(from, { text: tags, mentions: members })
-    }
-
-    if (cmd === ".antilink on") settings.antilink = true
-    if (cmd === ".antilink off") settings.antilink = false
-    if (cmd === ".antisticker on") settings.antisticker = true
-    if (cmd === ".antisticker off") settings.antisticker = false
-    if (cmd === ".antiaudio on") settings.antiaudio = true
-    if (cmd === ".antiaudio off") settings.antiaudio = false
-  })
+  } catch (err) {
+    console.error("❌ Bot start failed, retrying...");
+    setTimeout(startBot, 5000);
+  }
 }
 
-/* ================= API ================= */
+/* ================= PAIR CODE API ================= */
 
 app.post("/pair", async (req, res) => {
-  const { phone } = req.body
-  if (!phone) return res.json({ error: "Phone number required" })
+  if (!sock || !ready) {
+    return res.json({ error: "Bot not ready yet" });
+  }
 
-  if (!sock) await startBot(phone)
+  const { number } = req.body;
+  if (!number) {
+    return res.json({ error: "Number required" });
+  }
 
-  // wait until pair code is ready
-  let tries = 0
-  const interval = setInterval(() => {
-    if (pairCode || tries > 10) {
-      clearInterval(interval)
-      res.json({ code: pairCode || "FAILED" })
-    }
-    tries++
-  }, 500)
-})
-
-/* ================= FRONTEND ================= */
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"))
-})
-
-/* ================= SERVER ================= */
-
-const PORT = process.env.PORT || 3000
-app.listen(PORT, () => {
-  console.log("🌐 Server running on port", PORT)
-})
+  try {
+    const code = await sock.requestPairingCode(number);
+    res.json({ pairCode: code });
+  } catch {
+    res.json({ error: "Pairing failed" });
+  }
+});
