@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -42,7 +41,18 @@ async function startWhatsApp(phoneForPair = null) {
       auth: state,
       logger: pino({ level: "silent" }),
       browser: Browsers.ubuntu("Chrome"),
-      printQRInTerminal: false
+      printQRInTerminal: false,
+      syncFullHistory: false,
+      markOnlineOnConnect: true,
+      emitOwnEvents: true,
+      defaultQueryTimeoutMs: 60000,
+      connectTimeoutMs: 30000,
+      keepAliveIntervalMs: 10000,
+      generateHighQualityLinkPreview: true,
+      retryRequestDelayMs: 1000,
+      getMessage: async (key) => {
+        return {};
+      }
     });
 
     // Initialize command handler
@@ -57,6 +67,12 @@ async function startWhatsApp(phoneForPair = null) {
         console.log("✅ WhatsApp Connected");
         pairingCode = null;
         isStarting = false;
+        
+        // Mark bot as online
+        sock.sendPresenceUpdate('available');
+        
+        // Set status
+        sock.updateProfileStatus("Viral-Bot Mini is Online 🤖");
       }
 
       if (connection === "close") {
@@ -66,7 +82,11 @@ async function startWhatsApp(phoneForPair = null) {
 
         console.log("❌ Disconnected. Reconnect:", shouldReconnect);
         isStarting = false;
-        if (shouldReconnect) startWhatsApp();
+        sock = null;
+        if (shouldReconnect) {
+          console.log("🔄 Reconnecting in 5 seconds...");
+          setTimeout(() => startWhatsApp(), 5000);
+        }
       }
     });
 
@@ -83,20 +103,64 @@ async function startWhatsApp(phoneForPair = null) {
     }
 
     /* ===================== MESSAGE HANDLER ===================== */
-    sock.ev.on("messages.upsert", async ({ messages }) => {
-      const m = messages[0];
-      if (!m?.message) return;
+    sock.ev.on("messages.upsert", async (data) => {
+      const { messages, type } = data;
+      
+      if (type !== 'notify') return;
+      
+      for (const m of messages) {
+        if (!m?.message) continue;
+        
+        // Skip if message is from status broadcast
+        if (m.key.remoteJid === "status@broadcast") continue;
+        
+        // Mark message as read
+        try {
+          await sock.readMessages([m.key]);
+        } catch (error) {
+          console.error("Error marking message as read:", error);
+        }
+        
+        // Process message asynchronously
+        try {
+          await commandHandler.handleMessage(m);
+        } catch (error) {
+          console.error("Error handling message:", error);
+        }
+      }
+    });
 
+    // Handle group participants update
+    sock.ev.on("group-participants.update", async (update) => {
       try {
-        await commandHandler.handleMessage(m);
+        const { id, participants, action } = update;
+        
+        // Get group settings
+        if (commandHandler.groupSettings.has(id)) {
+          const settings = commandHandler.groupSettings.get(id);
+          
+          if (settings.welcome) {
+            // Send welcome message for new participants
+            if (action === "add") {
+              for (const participant of participants) {
+                await sock.sendMessage(id, {
+                  text: `🎉 Welcome @${participant.split('@')[0]} to the group!\n\nPlease read the group rules and enjoy your stay!`,
+                  mentions: [participant]
+                });
+              }
+            }
+          }
+        }
       } catch (error) {
-        console.error("Error handling message:", error);
+        console.error("Error handling group update:", error);
       }
     });
 
   } catch (e) {
-    console.error("CRITICAL:", e);
+    console.error("CRITICAL ERROR:", e);
     isStarting = false;
+    sock = null;
+    setTimeout(() => startWhatsApp(), 10000);
   }
 }
 
@@ -107,24 +171,65 @@ app.post("/pair", async (req, res) => {
     return res.json({ success: false, error: "Invalid phone" });
 
   pairingCode = null;
+  
+  // Stop any existing connection
+  if (sock) {
+    try {
+      await sock.logout();
+      sock = null;
+    } catch (error) {
+      // Ignore logout errors
+    }
+  }
+  
   await startWhatsApp(phone);
 
-  let t = 0;
-  const wait = setInterval(() => {
-    t++;
+  let attempts = 0;
+  const maxAttempts = 30;
+  
+  const waitForCode = setInterval(() => {
+    attempts++;
+    
     if (pairingCode) {
-      clearInterval(wait);
-      return res.json({ success: true, code: pairingCode });
+      clearInterval(waitForCode);
+      return res.json({ 
+        success: true, 
+        code: pairingCode,
+        message: "Pairing code generated successfully"
+      });
     }
-    if (t > 25) {
-      clearInterval(wait);
-      return res.json({ success: false, error: "Timeout" });
+    
+    if (attempts > maxAttempts) {
+      clearInterval(waitForCode);
+      return res.json({ 
+        success: false, 
+        error: "Timeout waiting for pairing code. Please try again." 
+      });
     }
   }, 1000);
+});
+
+/* ===================== HEALTH CHECK ===================== */
+app.get("/health", (req, res) => {
+  const status = {
+    bot_connected: sock !== null,
+    pairing_code: pairingCode || "Not active",
+    is_starting: isStarting,
+    timestamp: new Date().toISOString()
+  };
+  res.json(status);
 });
 
 /* ===================== START ===================== */
 app.listen(PORT, () => {
   console.log(`🚀 Viral-Bot Mini running on port ${PORT}`);
-  if (fs.existsSync("./auth/creds.json")) startWhatsApp();
+  console.log(`🌐 Web Interface: http://localhost:${PORT}`);
+  
+  // Check if credentials exist and start bot
+  if (fs.existsSync("./auth/creds.json")) {
+    console.log("🔑 Credentials found, starting bot...");
+    startWhatsApp();
+  } else {
+    console.log("🔒 No credentials found. Please pair via web interface.");
+  }
 });

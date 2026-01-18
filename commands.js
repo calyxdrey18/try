@@ -89,136 +89,157 @@ class CommandHandler {
     }
   }
 
+  // Extract text from different message types
+  extractText(m) {
+    if (!m.message) return "";
+    
+    const message = m.message;
+    
+    // Check conversation text
+    if (message.conversation) {
+      return message.conversation;
+    }
+    
+    // Check extended text message
+    if (message.extendedTextMessage?.text) {
+      return message.extendedTextMessage.text;
+    }
+    
+    // Check image caption
+    if (message.imageMessage?.caption) {
+      return message.imageMessage.caption;
+    }
+    
+    // Check video caption
+    if (message.videoMessage?.caption) {
+      return message.videoMessage.caption;
+    }
+    
+    // Check document caption
+    if (message.documentMessage?.caption) {
+      return message.documentMessage.caption;
+    }
+    
+    return "";
+  }
+
   async handleMessage(m) {
-    const jid = m.key.remoteJid;
-    if (jid === "status@broadcast") return;
+    try {
+      const jid = m.key.remoteJid;
+      if (!jid || jid === "status@broadcast") return;
 
-    this.stats.messagesProcessed++;
+      this.stats.messagesProcessed++;
+      console.log(`📩 Message received from ${jid}`);
 
-    const isGroup = jid.endsWith("@g.us");
-    const sender = isGroup ? m.key.participant || jid : jid;
+      const isGroup = jid.endsWith("@g.us");
+      const sender = isGroup ? (m.key.participant || jid) : jid;
 
-    // Initialize group settings
-    if (isGroup && !this.groupSettings.has(jid)) {
-      this.groupSettings.set(jid, {
-        welcome: true,
-        antilink: false,
-        antisticker: false,
-        antiaudio: false,
-        antivideo: false,
-        antiviewonce: false,
-        antiimage: false,
-        antifile: false
-      });
-    }
-
-    // Button click handler
-    if (m.message.buttonsResponseMessage) {
-      const btn = m.message.buttonsResponseMessage.selectedButtonId;
-      if (btn === "open_channel") {
-        await this.simulateTyping(jid, 1500);
-        return this.sendReply(jid, {
-          text: `📢 *${CHANNEL_NAME}*\n\nFollow our WhatsApp Channel:\n${CHANNEL_LINK}`
-        }, m);
+      // Initialize group settings
+      if (isGroup && !this.groupSettings.has(jid)) {
+        this.groupSettings.set(jid, {
+          welcome: true,
+          antilink: false,
+          antisticker: false,
+          antiaudio: false,
+          antivideo: false,
+          antiviewonce: false,
+          antiimage: false,
+          antifile: false
+        });
       }
-    }
 
-    // Extract text from message
-    const type = getMessageType(m);
-    let text = "";
-    
-    if (type === "conversation") {
-      text = m.message.conversation;
-    } else if (type === "extendedTextMessage") {
-      text = m.message.extendedTextMessage.text;
-    } else if (type === "imageMessage" && m.message.imageMessage.caption) {
-      text = m.message.imageMessage.caption;
-    } else if (type === "videoMessage" && m.message.videoMessage.caption) {
-      text = m.message.videoMessage.caption;
-    }
+      // Button click handler
+      if (m.message.buttonsResponseMessage) {
+        const btn = m.message.buttonsResponseMessage.selectedButtonId;
+        if (btn === "open_channel") {
+          await this.simulateTyping(jid, 1500);
+          return this.sendReply(jid, {
+            text: `📢 *${CHANNEL_NAME}*\n\nFollow our WhatsApp Channel:\n${CHANNEL_LINK}`
+          }, m);
+        }
+      }
 
-    // Check for anti-features BEFORE processing commands
-    if (isGroup) {
-      await this.checkAntiFeatures(jid, m);
-    }
+      // Extract text from message
+      const text = this.extractText(m);
+      
+      if (!text || !text.startsWith(".")) {
+        // Check for anti-features even if not a command
+        if (isGroup) {
+          await this.checkAntiFeatures(jid, m);
+        }
+        return;
+      }
 
-    if (!text || !text.startsWith(".")) return;
+      // Prevent reply loops
+      if (m.key.fromMe) {
+        console.log("Skipping bot's own message");
+        return;
+      }
 
-    // Prevent reply loops
-    const isBotEcho = m.key.fromMe && 
-      m.message.extendedTextMessage?.contextInfo?.stanzaId;
-    if (isBotEcho) return;
+      const args = text.slice(1).trim().split(/\s+/);
+      const command = args[0].toLowerCase();
+      
+      // Get quoted participant for reply-based commands
+      const quotedParticipant = getQuotedParticipant(m);
+      const targetUsers = quotedParticipant ? [quotedParticipant] : [];
 
-    const args = text.slice(1).trim().split(/\s+/);
-    const command = args[0].toLowerCase();
-    
-    // Get quoted participant for reply-based commands
-    const quotedParticipant = getQuotedParticipant(m);
-    const targetUsers = quotedParticipant ? [quotedParticipant] : [];
+      this.stats.commandsExecuted++;
+      console.log(`⚡ Command detected: ${command} from ${sender}`);
 
-    this.stats.commandsExecuted++;
+      // Simulate typing before response
+      const typingDuration = Math.random() * 1500 + 800;
+      await this.simulateTyping(jid, typingDuration);
 
-    // Simulate typing before response
-    const typingDuration = Math.random() * 1500 + 800;
-    await this.simulateTyping(jid, typingDuration);
+      // Add small random delay for human-like behavior
+      const randomDelay = Math.random() * 1000 + 500;
+      await new Promise(resolve => setTimeout(resolve, randomDelay));
 
-    // Add small random delay for human-like behavior
-    const randomDelay = Math.random() * 1000 + 500;
-    await new Promise(resolve => setTimeout(resolve, randomDelay));
+      // Route command to appropriate handler
+      const commandHandlers = {
+        'alive': () => this.handleAlive(jid, m),
+        'ping': () => this.handlePing(jid, m),
+        'menu': () => this.handleMenu(jid, m),
+        'tagall': () => this.handleTagAll(jid, isGroup, sender, m),
+        'mute': () => this.handleMute(jid, isGroup, sender, true, m),
+        'unmute': () => this.handleMute(jid, isGroup, sender, false, m),
+        'help': () => this.handleHelp(jid, m),
+        'info': () => this.handleInfo(jid, m),
+        'stats': () => this.handleStats(jid, m),
+        'about': () => this.handleAbout(jid, m),
+        'welcome': () => this.handleWelcome(jid, isGroup, sender, m),
+        'promote': () => this.handlePromote(jid, isGroup, sender, targetUsers, m),
+        'demote': () => this.handleDemote(jid, isGroup, sender, targetUsers, m),
+        'kick': () => this.handleKick(jid, isGroup, sender, targetUsers, m),
+        'setdesc': () => this.handleSetDesc(jid, isGroup, sender, args.slice(1).join(" "), m),
+        'antilink': () => this.handleAntiLink(jid, isGroup, sender, m),
+        'antisticker': () => this.handleAntiSticker(jid, isGroup, sender, m),
+        'antiaudio': () => this.handleAntiAudio(jid, isGroup, sender, m),
+        'antivideo': () => this.handleAntiVideo(jid, isGroup, sender, m),
+        'antiviewonce': () => this.handleAntiViewOnce(jid, isGroup, sender, m),
+        'antiimage': () => this.handleAntiImage(jid, isGroup, sender, m),
+        'antifile': () => this.handleAntiFile(jid, isGroup, sender, m),
+        'setpp': () => this.handleSetPP(jid, isGroup, sender, m),
+        'vv': () => this.handleDownloadMedia(jid, sender, m),
+        'save': () => this.handleDownloadMedia(jid, sender, m)
+      };
 
-    // Route command to appropriate handler
-    switch(command) {
-      case 'alive':
-        return this.handleAlive(jid, m);
-      case 'ping':
-        return this.handlePing(jid, m);
-      case 'menu':
-        return this.handleMenu(jid, m);
-      case 'tagall':
-        return this.handleTagAll(jid, isGroup, sender, m);
-      case 'mute':
-        return this.handleMute(jid, isGroup, sender, true, m);
-      case 'unmute':
-        return this.handleMute(jid, isGroup, sender, false, m);
-      case 'help':
-        return this.handleHelp(jid, m);
-      case 'info':
-        return this.handleInfo(jid, m);
-      case 'stats':
-        return this.handleStats(jid, m);
-      case 'about':
-        return this.handleAbout(jid, m);
-      case 'welcome':
-        return this.handleWelcome(jid, isGroup, sender, m);
-      case 'promote':
-        return this.handlePromote(jid, isGroup, sender, targetUsers, m);
-      case 'demote':
-        return this.handleDemote(jid, isGroup, sender, targetUsers, m);
-      case 'kick':
-        return this.handleKick(jid, isGroup, sender, targetUsers, m);
-      case 'setdesc':
-        return this.handleSetDesc(jid, isGroup, sender, args.slice(1).join(" "), m);
-      case 'antilink':
-        return this.handleAntiLink(jid, isGroup, sender, m);
-      case 'antisticker':
-        return this.handleAntiSticker(jid, isGroup, sender, m);
-      case 'antiaudio':
-        return this.handleAntiAudio(jid, isGroup, sender, m);
-      case 'antivideo':
-        return this.handleAntiVideo(jid, isGroup, sender, m);
-      case 'antiviewonce':
-        return this.handleAntiViewOnce(jid, isGroup, sender, m);
-      case 'antiimage':
-        return this.handleAntiImage(jid, isGroup, sender, m);
-      case 'antifile':
-        return this.handleAntiFile(jid, isGroup, sender, m);
-      case 'setpp':
-        return this.handleSetPP(jid, isGroup, sender, m);
-      case 'vv':
-      case 'save':
-        return this.handleDownloadMedia(jid, sender, m);
-      default:
-        return this.handleUnknownCommand(jid, m);
+      if (commandHandlers[command]) {
+        try {
+          await commandHandlers[command]();
+        } catch (error) {
+          console.error(`Error executing command ${command}:`, error);
+          await this.sendReply(jid, {
+            text: createStyledMessage("ERROR", 
+              `Command execution failed:
+${error.message || "Unknown error"}`)
+          }, m);
+        }
+      } else {
+        await this.handleUnknownCommand(jid, m);
+      }
+
+    } catch (error) {
+      console.error("Error in handleMessage:", error);
     }
   }
 
@@ -237,9 +258,7 @@ Type *.help* to see available commands.`)
     if (!settings) return;
 
     // Get message text
-    const text = m.message.conversation || 
-                 m.message.extendedTextMessage?.text || 
-                 m.message.imageMessage?.caption || "";
+    const text = this.extractText(m);
     
     // Check for links (including shortened URLs)
     const hasLink = /(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+|bit\.ly\/[^\s]+|t\.co\/[^\s]+|goo\.gl\/[^\s]+)/i.test(text);
@@ -1139,7 +1158,6 @@ Changed by: @${sender.split("@")[0]}`)
     }, originalMessage);
   }
 
-  // IMPROVED: Download media command (.vv or .save) based on working code
   async handleDownloadMedia(jid, sender, originalMessage) {
     try {
       await this.simulateTyping(jid, 2000);
