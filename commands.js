@@ -1,7 +1,7 @@
 class WhatsAppCommands {
     
-    static async handleMenu(client, message) {
-        const menu = `
+    static async handleMenu() {
+        return `
 🤖 *BOT COMMANDS MENU*
 
 *.menu* - Show this menu
@@ -14,66 +14,89 @@ Simply type any command starting with a dot (.)
 
 ⚡ *Example:* .ping
 
+🔧 *Additional Features:*
+• Auto-reconnect on disconnect
+• Session persistence
+• Secure pairing system
+
 Need help? The bot is always here to assist!
         `;
-        
-        await message.reply(menu);
     }
     
-    static async handleInfo(client, message) {
-        const info = `
+    static async handleInfo() {
+        const uptime = process.uptime();
+        const days = Math.floor(uptime / 86400);
+        const hours = Math.floor((uptime % 86400) / 3600);
+        const minutes = Math.floor((uptime % 3600) / 60);
+        const seconds = Math.floor(uptime % 60);
+        
+        return `
 📊 *BOT INFORMATION*
 
 *Status:* ✅ Online
-*Version:* 1.0.0
-*Platform:* WhatsApp Web JS
-*Uptime:* 24/7
-*Developer:* Your Name
+*Version:* 2.0.0
+*Library:* Baileys (Official)
+*Platform:* Node.js
+*Uptime:* ${days}d ${hours}h ${minutes}m ${seconds}s
+*Server:* Render Cloud
 
-🔧 *Features:*
-• Pair code authentication
+🔧 *Technical Details:*
+• Pair code authentication (8-digit)
+• Multi-file auth state
+• Auto-reconnection
 • Command system
 • Web dashboard
-• Real-time status
 
-💡 *Note:* This bot respects your privacy and only processes commands you send.
+💡 *Note:* This bot uses official WhatsApp Web protocol.
+Your messages are end-to-end encrypted.
         `;
-        
-        await message.reply(info);
     }
     
-    static async handleAbout(client, message) {
-        const about = `
+    static async handleAbout() {
+        return `
 🌟 *ABOUT THIS BOT*
 
-This WhatsApp bot is built with:
-• Node.js and Express
-• whatsapp-web.js library
-• Pair code authentication system
-• Web interface for easy setup
+*WhatsApp Bot with Pair Code System*
 
-🎯 *Purpose:*
-Provide an easy-to-use WhatsApp automation solution with secure pairing through unique codes.
+This bot is built using:
+• @whiskeysockets/baileys (Official WhatsApp Web Library)
+• Node.js & Express
+• Socket.io for real-time updates
+• Render for hosting
+
+🎯 *Features:*
+• No QR code scanning required
+• 8-digit pair code system
+• Secure verification
+• Session persistence
+• Web dashboard
 
 🔒 *Security:*
-• Local authentication
-• Temporary pair codes
-• No message storage
-• End-to-end encryption preserved
+• Temporary pair codes (10 min expiry)
+• Verification code required
+• Session isolation
+• No message logging
 
-Developed with ❤️ for the community.
+🚀 *Quick Start:*
+1. Visit the web dashboard
+2. Enter your number
+3. Get pair code
+4. Verify and connect
+
+Developed with ❤️ for seamless WhatsApp automation.
         `;
-        
-        await message.reply(about);
     }
     
-    static async handlePing(client, message) {
+    static async handlePing() {
         const startTime = Date.now();
-        await message.reply('🏓 Pong!');
-        const endTime = Date.now();
-        const latency = endTime - startTime;
+        const serverTime = new Date().toLocaleTimeString();
         
-        await message.reply(`⏱️ Response time: ${latency}ms\n🕐 Server time: ${new Date().toLocaleTimeString()}`);
+        return `🏓 Pong!\n⏱️ Server time: ${serverTime}\n📍 Response: Instant`;
+    }
+    
+    // Additional command for testing
+    static async handleHelp() {
+        return `Need help? Contact the administrator or visit the web dashboard for support.`;
     }
 }
 

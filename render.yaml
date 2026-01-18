@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: whatsapp-bot
+    name: whatsapp-bot-pair
     env: node
     buildCommand: npm install
     startCommand: npm start
@@ -9,3 +9,4 @@ services:
         value: 18.x
     healthCheckPath: /health
     autoDeploy: true
+    plan: free

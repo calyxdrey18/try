@@ -8,116 +8,173 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --primary-color: #25D366;
-            --secondary-color: #128C7E;
-            --dark-color: #075E54;
-            --light-color: #DCF8C6;
+            --whatsapp-green: #25D366;
+            --whatsapp-dark-green: #128C7E;
+            --whatsapp-teal: #075E54;
+            --whatsapp-light: #DCF8C6;
+            --whatsapp-blue: #34B7F1;
         }
         
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
         }
         
         .container {
-            max-width: 800px;
-        }
-        
-        .card {
+            max-width: 900px;
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
-            border: none;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
+            padding: 30px;
             margin-top: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
         
-        .card-header {
-            background: linear-gradient(to right, var(--dark-color), var(--secondary-color));
-            color: white;
-            padding: 25px;
+        .header {
             text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--whatsapp-light);
         }
         
         .whatsapp-icon {
-            font-size: 3rem;
-            margin-bottom: 10px;
-            animation: float 3s ease-in-out infinite;
+            color: var(--whatsapp-green);
+            font-size: 3.5rem;
+            animation: pulse 2s infinite;
         }
         
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .step-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid var(--whatsapp-teal);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s;
+        }
+        
+        .step-card:hover {
+            transform: translateY(-5px);
         }
         
         .step-number {
+            background: var(--whatsapp-teal);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
-            background-color: var(--primary-color);
-            color: white;
-            border-radius: 50%;
-            margin-right: 10px;
             font-weight: bold;
+            margin-right: 15px;
         }
         
-        .pair-code {
+        .pair-code-display {
+            font-size: 3rem;
+            font-weight: bold;
+            letter-spacing: 15px;
+            text-align: center;
+            color: var(--whatsapp-teal);
+            background: var(--whatsapp-light);
+            padding: 30px;
+            border-radius: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            border: 3px dashed var(--whatsapp-green);
+        }
+        
+        .verification-code {
             font-size: 2.5rem;
             font-weight: bold;
-            letter-spacing: 10px;
-            color: var(--dark-color);
+            color: var(--whatsapp-dark-green);
             text-align: center;
             padding: 20px;
-            background: var(--light-color);
+            background: #e8f5e9;
             border-radius: 10px;
-            margin: 20px 0;
+            margin: 15px 0;
+            border: 2px solid var(--whatsapp-green);
         }
         
-        .btn-whatsapp {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 12px 30px;
-            border-radius: 50px;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-        
-        .btn-whatsapp:hover {
-            background-color: var(--secondary-color);
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-        }
-        
-        .status-connected {
-            color: var(--primary-color);
+        .status-indicator {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            text-align: center;
             font-weight: bold;
         }
         
         .status-pending {
-            color: #ffc107;
-            font-weight: bold;
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
         }
         
-        .command-list {
+        .status-verified {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .btn-whatsapp {
+            background: linear-gradient(to right, var(--whatsapp-green), var(--whatsapp-dark-green));
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        
+        .btn-whatsapp:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(37, 211, 102, 0.3);
+            color: white;
+        }
+        
+        .countdown {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--whatsapp-teal);
+            text-align: center;
+            padding: 10px;
+        }
+        
+        .command-box {
             background: #f8f9fa;
             border-radius: 10px;
-            padding: 20px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid var(--whatsapp-blue);
         }
         
-        .command {
-            background: white;
-            padding: 10px 15px;
-            margin: 5px 0;
-            border-radius: 8px;
-            border-left: 4px solid var(--primary-color);
+        .hidden {
+            display: none !important;
         }
         
         .loader {
             border: 5px solid #f3f3f3;
-            border-top: 5px solid var(--primary-color);
+            border-top: 5px solid var(--whatsapp-green);
             border-radius: 50%;
             width: 50px;
             height: 50px;
@@ -130,151 +187,212 @@
             100% { transform: rotate(360deg); }
         }
         
-        .hidden {
-            display: none;
+        .progress-container {
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(to right, var(--whatsapp-green), var(--whatsapp-blue));
+            width: 0%;
+            transition: width 0.5s;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 30px;
         }
     </style>
 </head>
 <body>
-    <div class="container py-5">
-        <div class="card">
-            <div class="card-header">
-                <div class="whatsapp-icon">
-                    <i class="fab fa-whatsapp"></i>
-                </div>
-                <h1 class="h3">WhatsApp Bot Pair System</h1>
-                <p class="mb-0">Connect your WhatsApp account using a secure pair code</p>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="whatsapp-icon">
+                <i class="fab fa-whatsapp"></i>
             </div>
+            <h1 class="mt-3">WhatsApp Bot Pair System</h1>
+            <p class="lead">Connect your WhatsApp using 8-digit pair code - No QR Code required</p>
+        </div>
+        
+        <!-- Step 1: Enter Phone Number -->
+        <div class="step-card" id="step1">
+            <h3>
+                <span class="step-number">1</span>
+                Enter Your WhatsApp Number
+            </h3>
+            <p class="text-muted">Enter your phone number with country code (without +)</p>
             
-            <div class="card-body p-4">
-                <!-- Step 1: Enter Number -->
-                <div id="step1">
-                    <h4 class="mb-4">
-                        <span class="step-number">1</span>
-                        Enter Your WhatsApp Number
-                    </h4>
-                    
-                    <div class="mb-4">
-                        <label for="whatsappNumber" class="form-label">Phone Number (with country code)</label>
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label for="phoneNumber" class="form-label">Phone Number</label>
                         <div class="input-group">
                             <span class="input-group-text">+</span>
                             <input type="tel" 
                                    class="form-control form-control-lg" 
-                                   id="whatsappNumber" 
+                                   id="phoneNumber" 
                                    placeholder="1234567890"
-                                   pattern="[0-9]{10,15}"
                                    required>
                         </div>
-                        <div class="form-text">Enter your number without country code prefix (e.g., 1234567890)</div>
+                        <div class="form-text">Example: 919876543210 for India (+91)</div>
                     </div>
-                    
-                    <button class="btn btn-whatsapp btn-lg w-100" onclick="generatePairCode()">
-                        <i class="fab fa-whatsapp me-2"></i> Generate Pair Code
+                </div>
+                <div class="col-md-4">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-whatsapp" onclick="generatePairCode()">
+                        <i class="fab fa-whatsapp me-2"></i> Get Pair Code
                     </button>
                 </div>
+            </div>
+        </div>
+        
+        <!-- Step 2: Pair Code Display -->
+        <div class="step-card hidden" id="step2">
+            <h3>
+                <span class="step-number">2</span>
+                Your Pair Code & Verification
+            </h3>
+            
+            <div class="text-center">
+                <p class="mb-3">Share this pair code with the verification system:</p>
+                <div class="pair-code-display" id="pairCode">00000000</div>
                 
-                <!-- Step 2: Show Pair Code -->
-                <div id="step2" class="hidden">
-                    <h4 class="mb-4">
-                        <span class="step-number">2</span>
-                        Your Pair Code
-                    </h4>
-                    
-                    <div class="pair-code" id="pairCodeDisplay">000000</div>
-                    
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>Important:</strong> This code will expire in 10 minutes. 
-                        Keep it secure and don't share it with anyone.
-                    </div>
-                    
-                    <div class="text-center mb-4">
-                        <div id="statusArea">
-                            <div class="loader hidden" id="loadingSpinner"></div>
-                            <p id="statusText" class="status-pending">Waiting for connection...</p>
-                            <div class="progress mt-2" style="height: 8px;">
-                                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
-                                     role="progressbar" style="width: 0%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>Next Steps:</strong> 
-                        The bot will connect automatically. Once connected, you'll receive a welcome message on WhatsApp.
-                    </div>
-                    
-                    <button class="btn btn-outline-secondary w-100 mb-3" onclick="resetForm()">
-                        <i class="fas fa-redo me-2"></i> Generate New Code
-                    </button>
+                <div class="verification-code">
+                    Verification: <span id="verificationCode">000000</span>
                 </div>
                 
-                <!-- Commands Section -->
-                <div class="mt-5">
-                    <h4 class="mb-3">
-                        <i class="fas fa-terminal me-2"></i>
-                        Available Bot Commands
-                    </h4>
-                    
-                    <div class="command-list">
-                        <div class="command">
-                            <strong>.menu</strong> - Show all available commands
-                        </div>
-                        <div class="command">
-                            <strong>.info</strong> - Get bot information and status
-                        </div>
-                        <div class="command">
-                            <strong>.about</strong> - Learn about this bot
-                        </div>
-                        <div class="command">
-                            <strong>.ping</strong> - Check bot response time
-                        </div>
-                    </div>
-                    
-                    <div class="mt-3 text-muted small">
-                        <i class="fas fa-lightbulb me-1"></i>
-                        Simply send any of these commands in your WhatsApp chat with the bot
-                    </div>
+                <div class="countdown mb-3">
+                    <i class="fas fa-clock me-2"></i>
+                    Expires in: <span id="countdown">10:00</span>
                 </div>
                 
-                <!-- Bot Information -->
-                <div class="mt-4 pt-4 border-top">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <h6><i class="fas fa-shield-alt me-2"></i> Secure</h6>
-                            <p class="small">End-to-end encryption preserved</p>
-                        </div>
-                        <div class="col-md-4">
-                            <h6><i class="fas fa-bolt me-2"></i> Fast</h6>
-                            <p class="small">Instant pair code generation</p>
-                        </div>
-                        <div class="col-md-4">
-                            <h6><i class="fas fa-code me-2"></i> Open</h6>
-                            <p class="small">Built with Node.js & whatsapp-web.js</p>
-                        </div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
+            
+            <div class="status-indicator status-pending" id="statusMessage">
+                <i class="fas fa-spinner fa-spin me-2"></i>
+                Waiting for verification...
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Important:</strong> Keep the verification code secure. You'll need it to complete pairing.
+            </div>
+        </div>
+        
+        <!-- Step 3: Connection Status -->
+        <div class="step-card hidden" id="step3">
+            <h3>
+                <span class="step-number">3</span>
+                Connection Status
+            </h3>
+            
+            <div class="text-center">
+                <div class="loader" id="connectionLoader"></div>
+                <div id="connectionStatus">
+                    <h4 class="mt-3" id="statusTitle">Initializing WhatsApp Connection</h4>
+                    <p class="text-muted" id="statusDescription">
+                        Please wait while we connect to WhatsApp...
+                    </p>
+                </div>
+                
+                <div class="alert alert-success hidden" id="successMessage">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Success!</strong> You are now connected to WhatsApp. Check your phone for welcome message.
+                </div>
+                
+                <button class="btn btn-outline-secondary mt-3" onclick="resetProcess()">
+                    <i class="fas fa-redo me-2"></i> Start Over
+                </button>
+            </div>
+        </div>
+        
+        <!-- Commands Section -->
+        <div class="step-card">
+            <h3>
+                <i class="fas fa-terminal me-2"></i>
+                Available Bot Commands
+            </h3>
+            <p class="text-muted">Once connected, use these commands in your WhatsApp chat:</p>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="command-box">
+                        <h5><i class="fas fa-list me-2"></i>.menu</h5>
+                        <p class="mb-0">Show all available commands</p>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="command-box">
+                        <h5><i class="fas fa-info-circle me-2"></i>.info</h5>
+                        <p class="mb-0">Get bot information and status</p>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="command-box">
+                        <h5><i class="fas fa-address-card me-2"></i>.about</h5>
+                        <p class="mb-0">Learn about this bot</p>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="command-box">
+                        <h5><i class="fas fa-bolt me-2"></i>.ping</h5>
+                        <p class="mb-0">Check bot response time</p>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="text-center mt-4 text-white">
-            <p class="small">
-                <i class="fas fa-heart text-danger"></i> 
-                Made with love for the WhatsApp community
-                <br>
-                <span id="serverStatus" class="badge bg-success mt-2">Server: Online</span>
-            </p>
+        <!-- Info Box -->
+        <div class="info-box">
+            <div class="row">
+                <div class="col-md-4">
+                    <h4><i class="fas fa-shield-alt me-2"></i> Secure</h4>
+                    <p class="small mb-0">End-to-end encryption • Temporary codes • No QR codes</p>
+                </div>
+                <div class="col-md-4">
+                    <h4><i class="fas fa-bolt me-2"></i> Fast</h4>
+                    <p class="small mb-0">Instant connection • Auto-reconnect • Reliable</p>
+                </div>
+                <div class="col-md-4">
+                    <h4><i class="fas fa-code me-2"></i> Modern</h4>
+                    <p class="small mb-0">Baileys library • WebSocket • Real-time updates</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Server Status -->
+        <div class="text-center mt-4">
+            <div class="badge bg-success p-2" id="serverStatus">
+                <i class="fas fa-server me-1"></i> Server: Online
+            </div>
+            <div class="badge bg-info p-2 ms-2" id="socketStatus">
+                <i class="fas fa-plug me-1"></i> WebSocket: Connecting...
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        let currentPairCode = '';
         let socket = null;
-        let checkInterval = null;
+        let pairCode = '';
+        let verificationCode = '';
+        let countdownInterval = null;
+        let statusCheckInterval = null;
+        let timeLeft = 600; // 10 minutes in seconds
+        let currentPhoneNumber = '';
         
-        // Initialize WebSocket connection
+        // Initialize WebSocket
         function initWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}`;
@@ -283,30 +401,45 @@
             
             socket.on('connect', () => {
                 console.log('WebSocket connected');
-                document.getElementById('serverStatus').textContent = 'Server: Connected';
+                updateSocketStatus('connected', 'WebSocket: Connected');
             });
             
-            socket.on('status-update', (data) => {
-                updateStatus(data.status, data.number);
+            socket.on('pair-status', (data) => {
+                handlePairStatusUpdate(data);
             });
             
             socket.on('connect_error', (error) => {
-                console.error('WebSocket connection error:', error);
-                document.getElementById('serverStatus').textContent = 'Server: Offline';
-                document.getElementById('serverStatus').className = 'badge bg-danger mt-2';
+                console.error('WebSocket error:', error);
+                updateSocketStatus('error', 'WebSocket: Error');
+                
+                // Try to reconnect after 5 seconds
+                setTimeout(initWebSocket, 5000);
+            });
+            
+            socket.on('disconnect', () => {
+                updateSocketStatus('disconnected', 'WebSocket: Disconnected');
             });
         }
         
         // Generate pair code
         async function generatePairCode() {
-            const numberInput = document.getElementById('whatsappNumber');
-            const number = numberInput.value.trim();
+            const phoneInput = document.getElementById('phoneNumber');
+            const phoneNumber = phoneInput.value.trim();
             
-            if (!number || !/^\d{10,15}$/.test(number)) {
+            if (!phoneNumber || !/^\d{10,15}$/.test(phoneNumber)) {
                 alert('Please enter a valid phone number (10-15 digits)');
-                numberInput.focus();
+                phoneInput.focus();
                 return;
             }
+            
+            currentPhoneNumber = phoneNumber;
+            
+            // Show loading
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('step2').classList.remove('hidden');
+            document.getElementById('statusMessage').className = 'status-indicator status-pending';
+            document.getElementById('statusMessage').innerHTML = 
+                '<i class="fas fa-spinner fa-spin me-2"></i>Generating pair code...';
             
             try {
                 const response = await fetch('/api/generate-pair-code', {
@@ -314,113 +447,229 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ number })
+                    body: JSON.stringify({ number: phoneNumber })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    currentPairCode = data.pairCode;
-                    document.getElementById('pairCodeDisplay').textContent = currentPairCode;
-                    document.getElementById('step1').classList.add('hidden');
-                    document.getElementById('step2').classList.remove('hidden');
+                    pairCode = data.pairCode;
+                    verificationCode = data.verificationCode;
                     
-                    // Initialize WhatsApp client via WebSocket
-                    socket.emit('initialize-whatsapp', {
-                        pairCode: currentPairCode,
-                        number: number
-                    });
+                    // Update display
+                    document.getElementById('pairCode').textContent = pairCode;
+                    document.getElementById('verificationCode').textContent = verificationCode;
+                    
+                    // Join pair room for WebSocket updates
+                    socket.emit('join-pair-room', pairCode);
+                    
+                    // Start countdown
+                    startCountdown();
                     
                     // Start checking status
                     startStatusChecking();
+                    
+                    // Automatically verify (simulating backend verification)
+                    setTimeout(() => {
+                        verifyPairCode();
+                    }, 2000);
+                    
                 } else {
-                    alert('Error generating pair code: ' + (data.error || 'Unknown error'));
+                    alert('Error: ' + (data.error || 'Failed to generate pair code'));
+                    resetProcess();
                 }
             } catch (error) {
                 console.error('Error:', error);
                 alert('Failed to generate pair code. Please try again.');
+                resetProcess();
             }
+        }
+        
+        // Verify pair code (automated in this example)
+        async function verifyPairCode() {
+            try {
+                const response = await fetch('/api/verify-pair-code', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        pairCode: pairCode,
+                        code: verificationCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStatusMessage('verified', 'Pair code verified! Connecting to WhatsApp...');
+                    showStep3();
+                } else {
+                    updateStatusMessage('error', 'Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Verification error:', error);
+                updateStatusMessage('error', 'Verification failed. Please try again.');
+            }
+        }
+        
+        // Start countdown timer
+        function startCountdown() {
+            timeLeft = 600; // Reset to 10 minutes
+            
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                
+                document.getElementById('countdown').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Update progress bar
+                const progress = ((600 - timeLeft) / 600) * 100;
+                document.getElementById('progressBar').style.width = `${progress}%`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    updateStatusMessage('error', 'Pair code expired. Please generate a new one.');
+                    setTimeout(resetProcess, 3000);
+                }
+            }, 1000);
         }
         
         // Start checking pair status
         function startStatusChecking() {
-            let progress = 0;
-            const progressBar = document.getElementById('progressBar');
-            const loadingSpinner = document.getElementById('loadingSpinner');
-            
-            loadingSpinner.classList.remove('hidden');
-            
-            checkInterval = setInterval(async () => {
+            statusCheckInterval = setInterval(async () => {
                 try {
-                    const response = await fetch(`/api/pair-status/${currentPairCode}`);
+                    const response = await fetch(`/api/pair-status/${pairCode}`);
                     const data = await response.json();
                     
-                    if (data.status === 'connected') {
-                        updateStatus('connected', data.number);
-                        clearInterval(checkInterval);
-                        loadingSpinner.classList.add('hidden');
-                    } else if (data.status === 'invalid') {
-                        updateStatus('invalid', '');
-                        clearInterval(checkInterval);
-                        loadingSpinner.classList.add('hidden');
+                    if (data.success) {
+                        // Update based on status
+                        if (data.status === 'connected') {
+                            clearInterval(statusCheckInterval);
+                            updateConnectionStatus('connected', 
+                                'WhatsApp Connected!', 
+                                'You are now connected. Check your WhatsApp for welcome message.');
+                        }
                     }
-                    
-                    // Update progress bar (10 minutes = 600 seconds)
-                    progress = Math.min(progress + 1, 100);
-                    progressBar.style.width = `${progress}%`;
-                    
                 } catch (error) {
-                    console.error('Error checking status:', error);
+                    console.error('Status check error:', error);
                 }
-            }, 1000); // Check every second
+            }, 2000);
         }
         
-        // Update status display
-        function updateStatus(status, number) {
-            const statusText = document.getElementById('statusText');
-            const progressBar = document.getElementById('progressBar');
-            
-            switch(status) {
-                case 'pending':
-                    statusText.textContent = '⏳ Waiting for WhatsApp connection...';
-                    statusText.className = 'status-pending';
+        // Handle WebSocket pair status updates
+        function handlePairStatusUpdate(data) {
+            switch(data.status) {
+                case 'connecting':
+                    updateConnectionStatus('connecting', 
+                        'Connecting to WhatsApp...', 
+                        'Initializing connection. Please wait.');
                     break;
                     
                 case 'connected':
-                    statusText.textContent = `✅ Connected! Welcome ${number}`;
-                    statusText.className = 'status-connected';
-                    progressBar.classList.remove('progress-bar-animated');
-                    progressBar.classList.remove('progress-bar-striped');
-                    progressBar.style.width = '100%';
-                    
-                    // Show success message
-                    setTimeout(() => {
-                        alert('🎉 Successfully connected! Check your WhatsApp for welcome message.');
-                    }, 500);
+                    clearInterval(statusCheckInterval);
+                    clearInterval(countdownInterval);
+                    updateConnectionStatus('connected', 
+                        'Successfully Connected!', 
+                        `Connected to ${data.number} at ${new Date(data.connectedAt).toLocaleTimeString()}`);
                     break;
                     
-                case 'invalid':
-                    statusText.textContent = '❌ Pair code expired or invalid';
-                    statusText.className = 'text-danger';
-                    clearInterval(checkInterval);
+                case 'disconnected':
+                    updateConnectionStatus('error', 
+                        'Disconnected', 
+                        `Connection lost: ${data.reason || 'Unknown reason'}`);
                     break;
             }
         }
         
-        // Reset form
-        function resetForm() {
-            clearInterval(checkInterval);
-            document.getElementById('step2').classList.add('hidden');
-            document.getElementById('step1').classList.remove('hidden');
-            document.getElementById('whatsappNumber').value = '';
-            document.getElementById('whatsappNumber').focus();
+        // Update status message
+        function updateStatusMessage(type, message) {
+            const statusElement = document.getElementById('statusMessage');
             
-            // Reset status display
-            document.getElementById('statusText').textContent = 'Waiting for connection...';
-            document.getElementById('statusText').className = 'status-pending';
+            statusElement.className = `status-indicator status-${type}`;
+            
+            let icon = '';
+            switch(type) {
+                case 'pending': icon = '<i class="fas fa-spinner fa-spin me-2"></i>'; break;
+                case 'verified': icon = '<i class="fas fa-check-circle me-2"></i>'; break;
+                case 'connected': icon = '<i class="fas fa-link me-2"></i>'; break;
+                case 'error': icon = '<i class="fas fa-exclamation-triangle me-2"></i>'; break;
+            }
+            
+            statusElement.innerHTML = icon + message;
+        }
+        
+        // Update connection status
+        function updateConnectionStatus(status, title, description) {
+            const loader = document.getElementById('connectionLoader');
+            const statusElement = document.getElementById('connectionStatus');
+            const successElement = document.getElementById('successMessage');
+            
+            switch(status) {
+                case 'connecting':
+                    loader.classList.remove('hidden');
+                    successElement.classList.add('hidden');
+                    break;
+                    
+                case 'connected':
+                    loader.classList.add('hidden');
+                    successElement.classList.remove('hidden');
+                    break;
+                    
+                case 'error':
+                    loader.classList.add('hidden');
+                    break;
+            }
+            
+            document.getElementById('statusTitle').textContent = title;
+            document.getElementById('statusDescription').textContent = description;
+        }
+        
+        // Show step 3
+        function showStep3() {
+            document.getElementById('step2').classList.add('hidden');
+            document.getElementById('step3').classList.remove('hidden');
+        }
+        
+        // Reset process
+        function resetProcess() {
+            clearInterval(countdownInterval);
+            clearInterval(statusCheckInterval);
+            
+            document.getElementById('step1').classList.remove('hidden');
+            document.getElementById('step2').classList.add('hidden');
+            document.getElementById('step3').classList.add('hidden');
+            document.getElementById('phoneNumber').value = '';
+            document.getElementById('phoneNumber').focus();
+            
+            // Reset progress bar
             document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('progressBar').className = 'progress-bar progress-bar-striped progress-bar-animated';
-            document.getElementById('loadingSpinner').classList.add('hidden');
+            
+            timeLeft = 600;
+            pairCode = '';
+            verificationCode = '';
+        }
+        
+        // Update socket status
+        function updateSocketStatus(status, message) {
+            const element = document.getElementById('socketStatus');
+            
+            switch(status) {
+                case 'connected':
+                    element.className = 'badge bg-success p-2 ms-2';
+                    break;
+                case 'disconnected':
+                    element.className = 'badge bg-warning p-2 ms-2';
+                    break;
+                case 'error':
+                    element.className = 'badge bg-danger p-2 ms-2';
+                    break;
+            }
+            
+            element.innerHTML = `<i class="fas fa-plug me-1"></i> ${message}`;
         }
         
         // Initialize on page load
@@ -435,9 +684,17 @@
                 })
                 .catch(error => {
                     console.error('Server health check failed:', error);
-                    document.getElementById('serverStatus').textContent = 'Server: Offline';
-                    document.getElementById('serverStatus').className = 'badge bg-danger mt-2';
+                    document.getElementById('serverStatus').className = 'badge bg-danger p-2';
+                    document.getElementById('serverStatus').innerHTML = 
+                        '<i class="fas fa-server me-1"></i> Server: Offline';
                 });
+            
+            // Enter key support
+            document.getElementById('phoneNumber').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    generatePairCode();
+                }
+            });
         });
     </script>
 </body>
