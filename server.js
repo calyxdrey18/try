@@ -1,235 +1,202 @@
-const express = require("express");
-const path = require("path");
-const fs = require("fs");
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  DisconnectReason,
-  Browsers
-} = require("@whiskeysockets/baileys");
-const pino = require("pino");
-const CommandHandler = require("./commands");
+const express = require('express');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const http = require('http');
+const socketIo = require('socket.io');
+require('dotenv').config();
+const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const server = http.createServer(app);
+const io = socketIo(server);
+
+// Store pair codes and clients
+const pairCodes = new Map();
+const clients = new Map();
 
 app.use(express.json());
-app.use(express.static(__dirname));
+app.use(express.static('public'));
+app.use(express.urlencoded({ extended: true }));
 
-app.get("/", (_, res) =>
-  res.sendFile(path.join(__dirname, "index.html"))
-);
+// Serve HTML file
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
-/* ===================== GLOBAL STATE ===================== */
-let sock = null;
-let pairingCode = null;
-let isStarting = false;
-let commandHandler = null;
-
-/* ===================== WHATSAPP CORE ===================== */
-async function startWhatsApp(phoneForPair = null) {
-  if (isStarting) return;
-  isStarting = true;
-
-  try {
-    const { state, saveCreds } = await useMultiFileAuthState("./auth");
-    const { version } = await fetchLatestBaileysVersion();
-
-    sock = makeWASocket({
-      version,
-      auth: state,
-      logger: pino({ level: "silent" }),
-      browser: Browsers.ubuntu("Chrome"),
-      printQRInTerminal: false,
-      syncFullHistory: false,
-      markOnlineOnConnect: true,
-      emitOwnEvents: true,
-      defaultQueryTimeoutMs: 60000,
-      connectTimeoutMs: 30000,
-      keepAliveIntervalMs: 10000,
-      generateHighQualityLinkPreview: true,
-      retryRequestDelayMs: 1000,
-      getMessage: async (key) => {
-        return {};
-      }
-    });
-
-    // Initialize command handler
-    commandHandler = new CommandHandler(sock);
-
-    sock.ev.on("creds.update", saveCreds);
-
-    sock.ev.on("connection.update", (u) => {
-      const { connection, lastDisconnect } = u;
-
-      if (connection === "open") {
-        console.log("✅ WhatsApp Connected");
-        pairingCode = null;
-        isStarting = false;
-        
-        // Mark bot as online
-        sock.sendPresenceUpdate('available');
-        
-        // Set status
-        sock.updateProfileStatus("Viral-Bot Mini is Online 🤖");
-      }
-
-      if (connection === "close") {
-        const shouldReconnect =
-          lastDisconnect?.error?.output?.statusCode !==
-          DisconnectReason.loggedOut;
-
-        console.log("❌ Disconnected. Reconnect:", shouldReconnect);
-        isStarting = false;
-        sock = null;
-        if (shouldReconnect) {
-          console.log("🔄 Reconnecting in 5 seconds...");
-          setTimeout(() => startWhatsApp(), 5000);
-        }
-      }
-    });
-
-    // Pairing code request
-    if (phoneForPair && !sock.authState.creds.registered) {
-      setTimeout(async () => {
-        try {
-          pairingCode = await sock.requestPairingCode(phoneForPair);
-          console.log("🔐 Pairing Code:", pairingCode);
-        } catch {
-          pairingCode = "FAILED";
-        }
-      }, 3000);
+// API to generate pair code for a number
+app.post('/api/generate-pair-code', (req, res) => {
+    const { number } = req.body;
+    
+    if (!number) {
+        return res.status(400).json({ error: 'Number is required' });
     }
 
-    /* ===================== MESSAGE HANDLER ===================== */
-    sock.ev.on("messages.upsert", async (data) => {
-      const { messages, type } = data;
-      
-      if (type !== 'notify') return;
-      
-      for (const m of messages) {
-        if (!m?.message) continue;
-        
-        // Skip if message is from status broadcast
-        if (m.key.remoteJid === "status@broadcast") continue;
-        
-        // Mark message as read
-        try {
-          await sock.readMessages([m.key]);
-        } catch (error) {
-          console.error("Error marking message as read:", error);
-        }
-        
-        // Process message asynchronously
-        try {
-          await commandHandler.handleMessage(m);
-        } catch (error) {
-          console.error("Error handling message:", error);
-        }
-      }
+    // Clean number format
+    const cleanNumber = number.replace(/\D/g, '');
+    
+    // Generate 6-digit pair code
+    const pairCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store pair code with number and timestamp
+    pairCodes.set(pairCode, {
+        number: cleanNumber,
+        createdAt: Date.now(),
+        status: 'pending'
     });
 
-    // Handle group participants update
-    sock.ev.on("group-participants.update", async (update) => {
-      try {
-        const { id, participants, action } = update;
-        
-        // Get group settings
-        if (commandHandler.groupSettings.has(id)) {
-          const settings = commandHandler.groupSettings.get(id);
-          
-          if (settings.welcome) {
-            // Send welcome message for new participants
-            if (action === "add") {
-              for (const participant of participants) {
-                await sock.sendMessage(id, {
-                  text: `🎉 Welcome @${participant.split('@')[0]} to the group!\n\nPlease read the group rules and enjoy your stay!`,
-                  mentions: [participant]
-                });
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error handling group update:", error);
-      }
-    });
+    // Clean up old pair codes (older than 10 minutes)
+    cleanupPairCodes();
 
-  } catch (e) {
-    console.error("CRITICAL ERROR:", e);
-    isStarting = false;
-    sock = null;
-    setTimeout(() => startWhatsApp(), 10000);
-  }
+    res.json({ 
+        success: true, 
+        pairCode,
+        message: `Pair code generated for ${cleanNumber}. Use it within 10 minutes.`
+    });
+});
+
+// API to check pair code status
+app.get('/api/pair-status/:code', (req, res) => {
+    const { code } = req.params;
+    const pairData = pairCodes.get(code);
+    
+    if (!pairData) {
+        return res.json({ status: 'invalid', message: 'Invalid pair code' });
+    }
+    
+    res.json({
+        status: pairData.status,
+        number: pairData.number,
+        timestamp: pairData.createdAt
+    });
+});
+
+// Function to cleanup old pair codes
+function cleanupPairCodes() {
+    const now = Date.now();
+    for (const [code, data] of pairCodes.entries()) {
+        if (now - data.createdAt > 10 * 60 * 1000) { // 10 minutes
+            pairCodes.delete(code);
+        }
+    }
 }
 
-/* ===================== PAIR API ===================== */
-app.post("/pair", async (req, res) => {
-  let phone = String(req.body.phone || "").replace(/\D/g, "");
-  if (!phone)
-    return res.json({ success: false, error: "Invalid phone" });
+// Initialize WhatsApp client for pair code
+function initializeWhatsAppClient(pairCode, number) {
+    const client = new Client({
+        authStrategy: new LocalAuth({ clientId: `client_${pairCode}` }),
+        puppeteer: {
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        }
+    });
 
-  pairingCode = null;
-  
-  // Stop any existing connection
-  if (sock) {
-    try {
-      await sock.logout();
-      sock = null;
-    } catch (error) {
-      // Ignore logout errors
-    }
-  }
-  
-  await startWhatsApp(phone);
+    client.on('qr', (qr) => {
+        console.log(`QR generated for ${number}`);
+        // You could store this QR for display if needed
+    });
 
-  let attempts = 0;
-  const maxAttempts = 30;
-  
-  const waitForCode = setInterval(() => {
-    attempts++;
+    client.on('ready', () => {
+        console.log(`Client ${pairCode} is ready!`);
+        
+        // Update pair code status
+        const pairData = pairCodes.get(pairCode);
+        if (pairData) {
+            pairData.status = 'connected';
+            pairData.connectedAt = Date.now();
+            pairData.clientId = pairCode;
+        }
+        
+        // Send welcome message
+        client.sendMessage(`${number}@c.us`, 
+            '🤖 *WhatsApp Bot Connected!*\n\n' +
+            'Available commands:\n' +
+            '*.menu* - Show all commands\n' +
+            '*.info* - Bot information\n' +
+            '*.about* - About this bot\n' +
+            '*.ping* - Check bot response\n\n' +
+            'Type *.menu* to get started!'
+        );
+    });
+
+    client.on('message', async (message) => {
+        console.log(`Message from ${message.from}: ${message.body}`);
+        
+        // Load commands
+        const commands = require('./commands.js');
+        
+        // Check if message is a command
+        const command = message.body.toLowerCase().trim();
+        
+        if (command.startsWith('.menu')) {
+            await commands.handleMenu(client, message);
+        } else if (command.startsWith('.info')) {
+            await commands.handleInfo(client, message);
+        } else if (command.startsWith('.about')) {
+            await commands.handleAbout(client, message);
+        } else if (command.startsWith('.ping')) {
+            await commands.handlePing(client, message);
+        } else if (command.startsWith('.')) {
+            await message.reply('❌ Unknown command. Type *.menu* for available commands.');
+        }
+    });
+
+    client.on('disconnected', (reason) => {
+        console.log(`Client ${pairCode} disconnected:`, reason);
+        pairCodes.delete(pairCode);
+        clients.delete(pairCode);
+    });
+
+    client.initialize();
+    clients.set(pairCode, client);
     
-    if (pairingCode) {
-      clearInterval(waitForCode);
-      return res.json({ 
-        success: true, 
-        code: pairingCode,
-        message: "Pairing code generated successfully"
-      });
-    }
+    return client;
+}
+
+// WebSocket for real-time updates
+io.on('connection', (socket) => {
+    console.log('Client connected via WebSocket');
     
-    if (attempts > maxAttempts) {
-      clearInterval(waitForCode);
-      return res.json({ 
-        success: false, 
-        error: "Timeout waiting for pairing code. Please try again." 
-      });
-    }
-  }, 1000);
+    socket.on('check-status', (pairCode) => {
+        const pairData = pairCodes.get(pairCode);
+        if (pairData) {
+            socket.emit('status-update', {
+                status: pairData.status,
+                number: pairData.number
+            });
+        }
+    });
+    
+    socket.on('initialize-whatsapp', ({ pairCode, number }) => {
+        const pairData = pairCodes.get(pairCode);
+        if (pairData && pairData.status === 'pending') {
+            initializeWhatsAppClient(pairCode, number);
+        }
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('Client disconnected from WebSocket');
+    });
 });
 
-/* ===================== HEALTH CHECK ===================== */
-app.get("/health", (req, res) => {
-  const status = {
-    bot_connected: sock !== null,
-    pairing_code: pairingCode || "Not active",
-    is_starting: isStarting,
-    timestamp: new Date().toISOString()
-  };
-  res.json(status);
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-/* ===================== START ===================== */
-app.listen(PORT, () => {
-  console.log(`🚀 Viral-Bot Mini running on port ${PORT}`);
-  console.log(`🌐 Web Interface: http://localhost:${PORT}`);
-  
-  // Check if credentials exist and start bot
-  if (fs.existsSync("./auth/creds.json")) {
-    console.log("🔑 Credentials found, starting bot...");
-    startWhatsApp();
-  } else {
-    console.log("🔒 No credentials found. Please pair via web interface.");
-  }
+// Get all active pair codes (for debugging)
+app.get('/api/active-pairs', (req, res) => {
+    const activePairs = Array.from(pairCodes.entries()).map(([code, data]) => ({
+        code,
+        ...data
+    }));
+    res.json({ activePairs, total: activePairs.length });
 });
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Open http://localhost:${PORT} in your browser`);
+});
+
+// Export for testing
+module.exports = { app, server, pairCodes };
