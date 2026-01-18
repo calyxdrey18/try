@@ -1,4 +1,4 @@
-// commands.js - Fixed for menu with image
+// commands.js - Fixed for Baileys 6.5.0
 const { 
   BOT_IMAGE_URL,
   CHANNEL_NAME, 
@@ -40,13 +40,12 @@ class CommandHandler {
         });
       }
 
-      // Button click
+      // Button click handler
       if (m.message?.buttonsResponseMessage) {
         const btn = m.message.buttonsResponseMessage.selectedButtonId;
         if (btn === "open_channel") {
           await this.sock.sendMessage(jid, {
-            text: `📢 *${CHANNEL_NAME}*\n\nFollow our channel:\n${CHANNEL_LINK}`,
-            contextInfo: getNewsletterContext()
+            text: `📢 *${CHANNEL_NAME}*\n\nFollow our channel:\n${CHANNEL_LINK}`
           });
           return;
         }
@@ -66,25 +65,12 @@ class CommandHandler {
         text = message.imageMessage.caption;
       }
 
-      // Check anti-features
-      if (isGroup && !m.key.fromMe) {
-        await this.checkAntiFeatures(jid, m, text, sender);
-      }
-
       if (!text || !text.startsWith(".")) return;
       if (m.key.fromMe) return;
 
       const args = text.slice(1).trim().split(/\s+/);
       const command = args[0].toLowerCase();
       
-      let targetUsers = [];
-      if (quotedMessage) {
-        const quotedParticipant = message.extendedTextMessage?.contextInfo?.participant;
-        if (quotedParticipant) targetUsers = [quotedParticipant];
-      } else if (message.extendedTextMessage?.contextInfo?.mentionedJid) {
-        targetUsers = message.extendedTextMessage.contextInfo.mentionedJid;
-      }
-
       this.stats.commandsExecuted++;
 
       // Command routing
@@ -123,13 +109,16 @@ class CommandHandler {
           await this.handleWelcome(jid, isGroup, sender, m);
           break;
         case 'promote':
+          const targetUsers = this.getTargetUsers(m, message, quotedMessage);
           await this.handlePromote(jid, isGroup, sender, targetUsers, m);
           break;
         case 'demote':
-          await this.handleDemote(jid, isGroup, sender, targetUsers, m);
+          const targetUsers2 = this.getTargetUsers(m, message, quotedMessage);
+          await this.handleDemote(jid, isGroup, sender, targetUsers2, m);
           break;
         case 'kick':
-          await this.handleKick(jid, isGroup, sender, targetUsers, m);
+          const targetUsers3 = this.getTargetUsers(m, message, quotedMessage);
+          await this.handleKick(jid, isGroup, sender, targetUsers3, m);
           break;
         case 'setdesc':
           await this.handleSetDesc(jid, isGroup, sender, args.slice(1).join(" "), m);
@@ -149,48 +138,27 @@ class CommandHandler {
         default:
           if (text.startsWith('.')) {
             await this.sock.sendMessage(jid, {
-              text: `❌ Unknown command: ${command}\nType .help for commands`,
-              contextInfo: getNewsletterContext()
+              text: `❌ Unknown command: ${command}\nType .help for commands`
             }, { quoted: m });
           }
           break;
       }
     } catch (error) {
-      console.error("Handle message error:", error);
+      console.error("Handle message error:", error.message);
     }
   }
 
-  async checkAntiFeatures(jid, m, text, sender) {
-    const settings = this.groupSettings.get(jid);
-    if (!settings) return;
-
-    try {
-      if (settings.antilink && text && /(https?:\/\/|www\.)/i.test(text)) {
-        await this.sock.sendMessage(jid, {
-          text: `⚠️ Anti-Link: Link deleted from @${sender.split('@')[0]}`,
-          mentions: [sender]
-        });
-        await this.sock.sendMessage(jid, { delete: m.key });
-      }
-
-      if (settings.antisticker && m.message.stickerMessage) {
-        await this.sock.sendMessage(jid, {
-          text: `⚠️ Anti-Sticker: Sticker deleted from @${sender.split('@')[0]}`,
-          mentions: [sender]
-        });
-        await this.sock.sendMessage(jid, { delete: m.key });
-      }
-
-      if (settings.antiaudio && m.message.audioMessage) {
-        await this.sock.sendMessage(jid, {
-          text: `⚠️ Anti-Audio: Audio deleted from @${sender.split('@')[0]}`,
-          mentions: [sender]
-        });
-        await this.sock.sendMessage(jid, { delete: m.key });
-      }
-    } catch (error) {
-      console.error("Anti-features error:", error);
+  getTargetUsers(m, message, quotedMessage) {
+    let targetUsers = [];
+    
+    if (quotedMessage) {
+      const quotedParticipant = message.extendedTextMessage?.contextInfo?.participant;
+      if (quotedParticipant) targetUsers = [quotedParticipant];
+    } else if (message.extendedTextMessage?.contextInfo?.mentionedJid) {
+      targetUsers = message.extendedTextMessage.contextInfo.mentionedJid;
     }
+    
+    return targetUsers;
   }
 
   async handleAlive(jid, originalMessage) {
@@ -198,14 +166,13 @@ class CommandHandler {
       await this.sock.sendMessage(jid, {
         image: { url: BOT_IMAGE_URL },
         caption: createStyledMessage("SYSTEM STATUS", 
-          `✅ Viral-Bot Mini is ALIVE\n\nStatus: ONLINE\nUptime: ${this.getUptime()}\nVersion: 2.0.0\nCommands: Active`),
+          `✅ Viral-Bot Mini is ALIVE\n\nStatus: ONLINE\nUptime: ${this.getUptime()}\nVersion: 2.0.0`),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
     } catch (error) {
       await this.sock.sendMessage(jid, {
         text: createStyledMessage("SYSTEM STATUS", 
-          `✅ Viral-Bot Mini is ALIVE\n\nStatus: ONLINE\nUptime: ${this.getUptime()}\nVersion: 2.0.0`),
-        contextInfo: getNewsletterContext()
+          `✅ Viral-Bot Mini is ALIVE\n\nStatus: ONLINE\nUptime: ${this.getUptime()}\nVersion: 2.0.0`)
       }, { quoted: originalMessage });
     }
   }
@@ -213,60 +180,62 @@ class CommandHandler {
   async handlePing(jid, originalMessage) {
     const start = Date.now();
     await this.sock.sendMessage(jid, {
-      text: "🏓 Pinging...",
-      contextInfo: getNewsletterContext()
+      text: "🏓 Pinging..."
     }, { quoted: originalMessage });
     
     const latency = Date.now() - start;
     
     await this.sock.sendMessage(jid, {
       text: createStyledMessage("PING TEST", 
-        `🏓 PONG!\nLatency: ${latency}ms\nStatus: ${latency < 500 ? 'Optimal' : 'Good'}`),
-      contextInfo: getNewsletterContext()
+        `🏓 PONG!\nLatency: ${latency}ms\nStatus: ${latency < 500 ? 'Optimal' : 'Good'}`)
     }, { quoted: originalMessage });
   }
 
   async handleMenu(jid, originalMessage) {
     try {
-      // First send image with caption
+      // Send image with caption
       await this.sock.sendMessage(jid, {
         image: { url: BOT_IMAGE_URL },
         caption: getCommandList(),
         contextInfo: getNewsletterContext()
       }, { quoted: originalMessage });
       
-      // Then send buttons separately
-      await this.sock.sendMessage(jid, {
-        text: "📢 Need updates?",
-        buttons: [
-          {
-            buttonId: "open_channel",
-            buttonText: { displayText: "📢 Open Channel" },
-            type: 1
-          }
-        ],
-        contextInfo: getNewsletterContext()
-      });
+      // Send button separately
+      setTimeout(async () => {
+        try {
+          await this.sock.sendMessage(jid, {
+            text: "📢 Want updates?",
+            buttons: [
+              {
+                buttonId: "open_channel",
+                buttonText: { displayText: "📢 Open Channel" },
+                type: 1
+              }
+            ],
+            contextInfo: getNewsletterContext()
+          });
+        } catch (error) {
+          console.log("Button error:", error.message);
+        }
+      }, 500);
+      
     } catch (error) {
-      console.log("Menu image error, sending text:", error);
+      console.log("Menu image error, sending text:", error.message);
       await this.sock.sendMessage(jid, {
-        text: getCommandList(),
-        contextInfo: getNewsletterContext()
+        text: getCommandList()
       }, { quoted: originalMessage });
     }
   }
 
   async handleHelp(jid, originalMessage) {
     await this.sock.sendMessage(jid, {
-      text: getCommandList(),
-      contextInfo: getNewsletterContext()
+      text: getCommandList()
     }, { quoted: originalMessage });
   }
 
   async handleInfo(jid, originalMessage) {
     await this.sock.sendMessage(jid, {
-      text: getBotInfo(),
-      contextInfo: getNewsletterContext()
+      text: getBotInfo()
     }, { quoted: originalMessage });
   }
 
@@ -274,23 +243,20 @@ class CommandHandler {
     const uptime = this.getUptime();
     await this.sock.sendMessage(jid, {
       text: createStyledMessage("BOT STATS",
-        `📊 Bot Statistics\n────────────────\nCommands: ${this.stats.commandsExecuted}\nMessages: ${this.stats.messagesProcessed}\nUptime: ${uptime}\n\n${new Date().toLocaleString()}`),
-      contextInfo: getNewsletterContext()
+        `📊 Bot Statistics\n────────────────\nCommands: ${this.stats.commandsExecuted}\nMessages: ${this.stats.messagesProcessed}\nUptime: ${uptime}`)
     }, { quoted: originalMessage });
   }
 
   async handleAbout(jid, originalMessage) {
     await this.sock.sendMessage(jid, {
-      text: getAbout(),
-      contextInfo: getNewsletterContext()
+      text: getAbout()
     }, { quoted: originalMessage });
   }
 
   async handleTagAll(jid, isGroup, sender, originalMessage) {
     if (!isGroup) {
       await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
+        text: "❌ This command works in groups only"
       }, { quoted: originalMessage });
       return;
     }
@@ -303,13 +269,11 @@ class CommandHandler {
       await this.sock.sendMessage(jid, {
         text: createStyledMessage("TAG ALL",
           `📣 Tagging ${mentions.length} members\n\n${mentionText}`),
-        mentions,
-        contextInfo: getNewsletterContext()
+        mentions
       }, { quoted: originalMessage });
     } catch (error) {
       await this.sock.sendMessage(jid, {
-        text: "❌ Failed to tag members",
-        contextInfo: getNewsletterContext()
+        text: "❌ Failed to tag members"
       }, { quoted: originalMessage });
     }
   }
@@ -317,8 +281,7 @@ class CommandHandler {
   async handleMute(jid, isGroup, sender, shouldMute, originalMessage) {
     if (!isGroup) {
       await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
+        text: "❌ This command works in groups only"
       }, { quoted: originalMessage });
       return;
     }
@@ -329,8 +292,7 @@ class CommandHandler {
 
       if (!admins.includes(sender)) {
         await this.sock.sendMessage(jid, {
-          text: "❌ Admin only command",
-          contextInfo: getNewsletterContext()
+          text: "❌ Admin only command"
         }, { quoted: originalMessage });
         return;
       }
@@ -343,312 +305,35 @@ class CommandHandler {
       await this.sock.sendMessage(jid, {
         text: createStyledMessage("GROUP ACTION",
           `${shouldMute ? "🔇 MUTED" : "🔊 UNMUTED"}\nGroup: ${meta.subject}\nBy: @${sender.split("@")[0]}`),
-        mentions: [sender],
-        contextInfo: getNewsletterContext()
+        mentions: [sender]
       }, { quoted: originalMessage });
     } catch (error) {
       await this.sock.sendMessage(jid, {
-        text: "❌ Failed to mute/unmute",
-        contextInfo: getNewsletterContext()
+        text: "❌ Failed to mute/unmute"
       }, { quoted: originalMessage });
     }
   }
 
   async handleWelcome(jid, isGroup, sender, originalMessage) {
-    if (!isGroup) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        await this.sock.sendMessage(jid, {
-          text: "❌ Admin only command",
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-        return;
-      }
-
-      const settings = this.groupSettings.get(jid);
-      if (settings) {
-        settings.welcome = !settings.welcome;
-        const status = settings.welcome ? "ENABLED ✅" : "DISABLED ❌";
-        
-        await this.sock.sendMessage(jid, {
-          text: createStyledMessage("WELCOME SETTINGS",
-            `Welcome messages: ${status}\nGroup: ${meta.subject}\nBy: @${sender.split("@")[0]}`),
-          mentions: [sender],
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-    } catch (error) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ Failed to update settings",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handlePromote(jid, isGroup, sender, targetUsers, originalMessage) {
-    if (!isGroup) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    if (targetUsers.length === 0) {
-      await this.sock.sendMessage(jid, {
-        text: "Usage: .promote @user\nOr reply to user's message",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        await this.sock.sendMessage(jid, {
-          text: "❌ Admin only command",
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-        return;
-      }
-
-      const user = targetUsers[0];
-      await this.sock.groupParticipantsUpdate(jid, [user], "promote");
-      
-      await this.sock.sendMessage(jid, {
-        text: createStyledMessage("PROMOTION",
-          `👑 @${user.split("@")[0]} promoted to admin\nBy: @${sender.split("@")[0]}`),
-        mentions: [user, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ Failed to promote user",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleDemote(jid, isGroup, sender, targetUsers, originalMessage) {
-    if (!isGroup) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    if (targetUsers.length === 0) {
-      await this.sock.sendMessage(jid, {
-        text: "Usage: .demote @user\nOr reply to user's message",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        await this.sock.sendMessage(jid, {
-          text: "❌ Admin only command",
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-        return;
-      }
-
-      const user = targetUsers[0];
-      await this.sock.groupParticipantsUpdate(jid, [user], "demote");
-      
-      await this.sock.sendMessage(jid, {
-        text: createStyledMessage("DEMOTION",
-          `📉 @${user.split("@")[0]} demoted from admin\nBy: @${sender.split("@")[0]}`),
-        mentions: [user, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ Failed to demote user",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleKick(jid, isGroup, sender, targetUsers, originalMessage) {
-    if (!isGroup) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    if (targetUsers.length === 0) {
-      await this.sock.sendMessage(jid, {
-        text: "Usage: .kick @user\nOr reply to user's message",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        await this.sock.sendMessage(jid, {
-          text: "❌ Admin only command",
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-        return;
-      }
-
-      const user = targetUsers[0];
-      await this.sock.groupParticipantsUpdate(jid, [user], "remove");
-      
-      await this.sock.sendMessage(jid, {
-        text: createStyledMessage("USER KICKED",
-          `👢 @${user.split("@")[0]} kicked from group\nBy: @${sender.split("@")[0]}`),
-        mentions: [user, sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ Failed to kick user",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleSetDesc(jid, isGroup, sender, description, originalMessage) {
-    if (!isGroup) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    if (!description) {
-      await this.sock.sendMessage(jid, {
-        text: "Usage: .setdesc [description text]",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        await this.sock.sendMessage(jid, {
-          text: "❌ Admin only command",
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-        return;
-      }
-
-      await this.sock.groupUpdateDescription(jid, description);
-      
-      await this.sock.sendMessage(jid, {
-        text: createStyledMessage("DESCRIPTION UPDATED",
-          `📝 Description updated\nGroup: ${meta.subject}\nBy: @${sender.split("@")[0]}`),
-        mentions: [sender],
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    } catch (error) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ Failed to update description",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
-  }
-
-  async handleSetPP(jid, isGroup, sender, originalMessage) {
-    if (!isGroup) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-      return;
-    }
-
-    try {
-      const meta = await this.sock.groupMetadata(jid);
-      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
-
-      if (!admins.includes(sender)) {
-        await this.sock.sendMessage(jid, {
-          text: "❌ Admin only command",
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-        return;
-      }
-
-      const quoted = originalMessage.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-      const hasImage = quoted?.imageMessage || originalMessage.message?.imageMessage;
-      
-      if (!hasImage) {
-        await this.sock.sendMessage(jid, {
-          text: "Reply to an image with .setpp",
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-        return;
-      }
-
-      const imageBuffer = await this.sock.downloadMediaMessage(
-        quoted ? { message: quoted } : originalMessage
-      );
-      
-      if (imageBuffer) {
-        await this.sock.updateProfilePicture(jid, imageBuffer);
-        
-        await this.sock.sendMessage(jid, {
-          text: createStyledMessage("PROFILE PICTURE",
-            `🖼️ Group picture updated\nBy: @${sender.split("@")[0]}`),
-          mentions: [sender],
-          contextInfo: getNewsletterContext()
-        }, { quoted: originalMessage });
-      }
-    } catch (error) {
-      await this.sock.sendMessage(jid, {
-        text: "❌ Failed to update picture",
-        contextInfo: getNewsletterContext()
-      }, { quoted: originalMessage });
-    }
+    await this.toggleGroupFeature(jid, isGroup, sender, "welcome", "Welcome Messages", originalMessage);
   }
 
   async handleAntiLink(jid, isGroup, sender, originalMessage) {
-    await this.toggleAntiFeature(jid, isGroup, sender, "antilink", "Anti-Link", originalMessage);
+    await this.toggleGroupFeature(jid, isGroup, sender, "antilink", "Anti-Link", originalMessage);
   }
 
   async handleAntiSticker(jid, isGroup, sender, originalMessage) {
-    await this.toggleAntiFeature(jid, isGroup, sender, "antisticker", "Anti-Sticker", originalMessage);
+    await this.toggleGroupFeature(jid, isGroup, sender, "antisticker", "Anti-Sticker", originalMessage);
   }
 
   async handleAntiAudio(jid, isGroup, sender, originalMessage) {
-    await this.toggleAntiFeature(jid, isGroup, sender, "antiaudio", "Anti-Audio", originalMessage);
+    await this.toggleGroupFeature(jid, isGroup, sender, "antiaudio", "Anti-Audio", originalMessage);
   }
 
-  async toggleAntiFeature(jid, isGroup, sender, feature, featureName, originalMessage) {
+  async toggleGroupFeature(jid, isGroup, sender, feature, featureName, originalMessage) {
     if (!isGroup) {
       await this.sock.sendMessage(jid, {
-        text: "❌ This command works in groups only",
-        contextInfo: getNewsletterContext()
+        text: "❌ This command works in groups only"
       }, { quoted: originalMessage });
       return;
     }
@@ -659,8 +344,7 @@ class CommandHandler {
 
       if (!admins.includes(sender)) {
         await this.sock.sendMessage(jid, {
-          text: "❌ Admin only command",
-          contextInfo: getNewsletterContext()
+          text: "❌ Admin only command"
         }, { quoted: originalMessage });
         return;
       }
@@ -673,14 +357,155 @@ class CommandHandler {
         await this.sock.sendMessage(jid, {
           text: createStyledMessage(`${featureName.toUpperCase()} SETTINGS`,
             `${featureName}: ${status}\nGroup: ${meta.subject}\nBy: @${sender.split("@")[0]}`),
-          mentions: [sender],
-          contextInfo: getNewsletterContext()
+          mentions: [sender]
         }, { quoted: originalMessage });
       }
     } catch (error) {
       await this.sock.sendMessage(jid, {
-        text: `❌ Failed to update ${featureName}`,
-        contextInfo: getNewsletterContext()
+        text: `❌ Failed to update ${featureName}`
+      }, { quoted: originalMessage });
+    }
+  }
+
+  async handlePromote(jid, isGroup, sender, targetUsers, originalMessage) {
+    await this.handleAdminAction(jid, isGroup, sender, targetUsers, "promote", "promoted to admin", originalMessage);
+  }
+
+  async handleDemote(jid, isGroup, sender, targetUsers, originalMessage) {
+    await this.handleAdminAction(jid, isGroup, sender, targetUsers, "demote", "demoted from admin", originalMessage);
+  }
+
+  async handleKick(jid, isGroup, sender, targetUsers, originalMessage) {
+    await this.handleAdminAction(jid, isGroup, sender, targetUsers, "remove", "kicked from group", originalMessage);
+  }
+
+  async handleAdminAction(jid, isGroup, sender, targetUsers, action, actionText, originalMessage) {
+    if (!isGroup) {
+      await this.sock.sendMessage(jid, {
+        text: "❌ This command works in groups only"
+      }, { quoted: originalMessage });
+      return;
+    }
+
+    if (targetUsers.length === 0) {
+      await this.sock.sendMessage(jid, {
+        text: `Usage: .${action} @user\nOr reply to user's message`
+      }, { quoted: originalMessage });
+      return;
+    }
+
+    try {
+      const meta = await this.sock.groupMetadata(jid);
+      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
+
+      if (!admins.includes(sender)) {
+        await this.sock.sendMessage(jid, {
+          text: "❌ Admin only command"
+        }, { quoted: originalMessage });
+        return;
+      }
+
+      const user = targetUsers[0];
+      await this.sock.groupParticipantsUpdate(jid, [user], action);
+      
+      await this.sock.sendMessage(jid, {
+        text: createStyledMessage(action.toUpperCase(),
+          `👤 @${user.split("@")[0]} ${actionText}\nBy: @${sender.split("@")[0]}`),
+        mentions: [user, sender]
+      }, { quoted: originalMessage });
+    } catch (error) {
+      await this.sock.sendMessage(jid, {
+        text: `❌ Failed to ${action} user`
+      }, { quoted: originalMessage });
+    }
+  }
+
+  async handleSetDesc(jid, isGroup, sender, description, originalMessage) {
+    if (!isGroup) {
+      await this.sock.sendMessage(jid, {
+        text: "❌ This command works in groups only"
+      }, { quoted: originalMessage });
+      return;
+    }
+
+    if (!description) {
+      await this.sock.sendMessage(jid, {
+        text: "Usage: .setdesc [description text]"
+      }, { quoted: originalMessage });
+      return;
+    }
+
+    try {
+      const meta = await this.sock.groupMetadata(jid);
+      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
+
+      if (!admins.includes(sender)) {
+        await this.sock.sendMessage(jid, {
+          text: "❌ Admin only command"
+        }, { quoted: originalMessage });
+        return;
+      }
+
+      await this.sock.groupUpdateDescription(jid, description);
+      
+      await this.sock.sendMessage(jid, {
+        text: createStyledMessage("DESCRIPTION UPDATED",
+          `📝 Description updated\nGroup: ${meta.subject}\nBy: @${sender.split("@")[0]}`),
+        mentions: [sender]
+      }, { quoted: originalMessage });
+    } catch (error) {
+      await this.sock.sendMessage(jid, {
+        text: "❌ Failed to update description"
+      }, { quoted: originalMessage });
+    }
+  }
+
+  async handleSetPP(jid, isGroup, sender, originalMessage) {
+    if (!isGroup) {
+      await this.sock.sendMessage(jid, {
+        text: "❌ This command works in groups only"
+      }, { quoted: originalMessage });
+      return;
+    }
+
+    try {
+      const meta = await this.sock.groupMetadata(jid);
+      const admins = meta.participants.filter(p => p.admin).map(p => p.id);
+
+      if (!admins.includes(sender)) {
+        await this.sock.sendMessage(jid, {
+          text: "❌ Admin only command"
+        }, { quoted: originalMessage });
+        return;
+      }
+
+      const quoted = originalMessage.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      const hasImage = quoted?.imageMessage || originalMessage.message?.imageMessage;
+      
+      if (!hasImage) {
+        await this.sock.sendMessage(jid, {
+          text: "Reply to an image with .setpp"
+        }, { quoted: originalMessage });
+        return;
+      }
+
+      const stream = await this.sock.downloadMediaMessage(
+        quoted ? { message: quoted } : originalMessage
+      );
+      
+      if (stream) {
+        const buffer = Buffer.from(await stream.arrayBuffer());
+        await this.sock.updateProfilePicture(jid, buffer);
+        
+        await this.sock.sendMessage(jid, {
+          text: createStyledMessage("PROFILE PICTURE",
+            `🖼️ Group picture updated\nBy: @${sender.split("@")[0]}`),
+          mentions: [sender]
+        }, { quoted: originalMessage });
+      }
+    } catch (error) {
+      await this.sock.sendMessage(jid, {
+        text: "❌ Failed to update picture"
       }, { quoted: originalMessage });
     }
   }
