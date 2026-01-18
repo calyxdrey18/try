@@ -3,53 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Bot Pairing</title>
+    <title>Viral-Bot Mini Linker</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
-        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        h1 { color: #25d366; }
-        input { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
-        button { background: #25d366; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-size: 1rem; width: 100%; font-weight: bold; }
-        button:disabled { background: #ccc; }
-        #code-display { margin-top: 20px; font-size: 2rem; font-weight: bold; letter-spacing: 5px; color: #075e54; display: none; background: #e7ffdb; padding: 10px; border-radius: 8px; }
-        .loading { color: #666; font-size: 0.9rem; margin-top: 10px; display: none; }
+        body { font-family: sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 2.5rem; border-radius: 1rem; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 350px; }
+        h2 { color: #10b981; margin-bottom: 1.5rem; }
+        input { width: 100%; padding: 0.8rem; border-radius: 0.5rem; border: none; margin-bottom: 1rem; background: #334155; color: white; }
+        button { width: 100%; padding: 0.8rem; border-radius: 0.5rem; border: none; background: #10b981; color: #0f172a; font-weight: bold; cursor: pointer; }
+        #codeDisplay { margin-top: 1.5rem; font-size: 1.8rem; letter-spacing: 4px; color: #fbbf24; font-weight: bold; display: none; }
+        .loading { display: none; margin-top: 10px; font-size: 0.8rem; color: #94a3b8; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>Bot Linker</h1>
-        <p>Enter your phone number with country code (e.g., 263771234567)</p>
-        <input type="text" id="phoneNumber" placeholder="Phone Number (no +)">
-        <button id="btn" onclick="getCode()">Get Pairing Code</button>
-        <div id="loader" class="loading">Requesting code from WhatsApp...</div>
-        <div id="code-display"></div>
+        <h2>Viral-Bot Mini</h2>
+        <p>Enter number with country code</p>
+        <input type="text" id="phone" placeholder="e.g. 263786624966">
+        <button id="btn" onclick="getPairCode()">Generate Code</button>
+        <div id="loading" class="loading">Connecting to WhatsApp...</div>
+        <div id="codeDisplay"></div>
     </div>
 
     <script>
-        async function getCode() {
-            const num = document.getElementById('phoneNumber').value;
+        async function getPairCode() {
+            const phone = document.getElementById('phone').value;
             const btn = document.getElementById('btn');
-            const display = document.getElementById('code-display');
-            const loader = document.getElementById('loader');
+            const display = document.getElementById('codeDisplay');
+            const loader = document.getElementById('loading');
 
-            if (!num) return alert("Enter number first!");
+            if(!phone) return alert("Please enter a number");
 
             btn.disabled = true;
             loader.style.display = 'block';
             display.style.display = 'none';
 
             try {
-                const response = await fetch(`/get-code?number=${num}`);
-                const data = await response.json();
-                
-                if (data.code) {
+                const res = await fetch('/pair', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone })
+                });
+                const data = await res.json();
+                if(data.code) {
                     display.innerText = data.code;
                     display.style.display = 'block';
                 } else {
-                    alert(data.error || "Error generating code.");
+                    alert(data.error || "Error");
                 }
-            } catch (err) {
-                alert("Server error. Check if the bot is running.");
+            } catch (e) {
+                alert("Server Error");
             } finally {
                 btn.disabled = false;
                 loader.style.display = 'none';
