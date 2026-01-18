@@ -1,33 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>WhatsApp Pair Code</title>
-  <style>
-    body { background:#020617;color:#fff;font-family:Arial;text-align:center;padding-top:60px }
-    input,button { padding:12px;font-size:16px;margin:6px;border-radius:6px;border:none }
-    button { background:#22c55e }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bot Pairing</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        h1 { color: #25d366; }
+        input { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
+        button { background: #25d366; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-size: 1rem; width: 100%; font-weight: bold; }
+        button:disabled { background: #ccc; }
+        #code-display { margin-top: 20px; font-size: 2rem; font-weight: bold; letter-spacing: 5px; color: #075e54; display: none; background: #e7ffdb; padding: 10px; border-radius: 8px; }
+        .loading { color: #666; font-size: 0.9rem; margin-top: 10px; display: none; }
+    </style>
 </head>
 <body>
+    <div class="card">
+        <h1>Bot Linker</h1>
+        <p>Enter your phone number with country code (e.g., 263771234567)</p>
+        <input type="text" id="phoneNumber" placeholder="Phone Number (no +)">
+        <button id="btn" onclick="getCode()">Get Pairing Code</button>
+        <div id="loader" class="loading">Requesting code from WhatsApp...</div>
+        <div id="code-display"></div>
+    </div>
 
-<h1>WhatsApp Pair Code Login</h1>
-<input id="num" placeholder="263XXXXXXXXX">
-<br>
-<button onclick="pair()">Get Pair Code</button>
-<h2 id="out"></h2>
+    <script>
+        async function getCode() {
+            const num = document.getElementById('phoneNumber').value;
+            const btn = document.getElementById('btn');
+            const display = document.getElementById('code-display');
+            const loader = document.getElementById('loader');
 
-<script>
-async function pair(){
-  const n = document.getElementById("num").value;
-  const r = await fetch("/pair",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ number:n })
-  });
-  const d = await r.json();
-  document.getElementById("out").innerText = d.pairCode || d.error;
-}
-</script>
+            if (!num) return alert("Enter number first!");
 
+            btn.disabled = true;
+            loader.style.display = 'block';
+            display.style.display = 'none';
+
+            try {
+                const response = await fetch(`/get-code?number=${num}`);
+                const data = await response.json();
+                
+                if (data.code) {
+                    display.innerText = data.code;
+                    display.style.display = 'block';
+                } else {
+                    alert(data.error || "Error generating code.");
+                }
+            } catch (err) {
+                alert("Server error. Check if the bot is running.");
+            } finally {
+                btn.disabled = false;
+                loader.style.display = 'none';
+            }
+        }
+    </script>
 </body>
 </html>
