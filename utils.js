@@ -1,11 +1,9 @@
 // utils.js
 const BOT_IMAGE_URL = "https://img.sanishtech.com/u/d52d507c27a7919e9e19448a073ba4cb.jpg";
-const FALLBACK_IMAGE_URL = "https://images.unsplash.com/photo-1611605698335-8b1569810432?w=500&h=300&fit=crop";
 const CHANNEL_NAME = "Viral-Bot Mini Updates";
 const CHANNEL_LINK = "https://whatsapp.com/channel/0029VbCGIzTJkK7C0wtGy31s";
 const NEWSLETTER_JID = "120363405637529316@newsletter";
 
-// Newsletter forwarding context
 function getNewsletterContext() {
   return {
     externalAdReply: {
@@ -76,9 +74,8 @@ Uptime: 24/7 Active
 • Media Filtering
 • Admin Controls
 • User Management
-• Web-based Pairing
 
-📞 Support: @+263786624966`;
+📞 Support: +263786624966`;
 
   return createStyledMessage("BOT INFORMATION", content);
 }
@@ -96,10 +93,8 @@ Languages: JavaScript, Python
 ────────────────────
 • 24/7 Uptime
 • Secure & Private
-• Fast Response (< 1s)
+• Fast Response
 • Regular Updates
-• Multi-language Support
-• Easy Web Interface
 
 📞 Contact
 ────────────────────
@@ -113,7 +108,6 @@ Thank you for using Viral-Bot Mini! ❤️`;
 
 module.exports = {
   BOT_IMAGE_URL,
-  FALLBACK_IMAGE_URL,
   CHANNEL_NAME,
   CHANNEL_LINK,
   NEWSLETTER_JID,

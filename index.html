@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>Viral-Bot Mini | WhatsApp Bot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Pair your WhatsApp number with Viral-Bot Mini - Feature-rich WhatsApp Bot">
   <style>
     :root {
       --bg: #020617;
@@ -14,16 +13,10 @@
       --text-main: #ffffff;
       --text-dim: #94a3b8;
       --error: #ff4757;
-      --success: #10b981;
       --border: rgba(255, 255, 255, 0.05);
     }
 
-    * { 
-      box-sizing: border-box; 
-      margin: 0; 
-      padding: 0; 
-      font-family: 'Inter', system-ui, -apple-system, sans-serif; 
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
 
     body {
       min-height: 100vh;
@@ -39,7 +32,6 @@
       padding: 20px;
     }
 
-    /* Animated background elements */
     .glow-circle {
       position: absolute;
       width: 300px;
@@ -75,26 +67,7 @@
       overflow: hidden;
     }
 
-    .glass-card::before {
-      content: "";
-      position: absolute;
-      top: 0; 
-      left: -100%;
-      width: 100%; 
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
-      transition: 0.5s;
-    }
-
-    .glass-card:hover::before { 
-      left: 100%; 
-      transition: 0.8s; 
-    }
-
-    .branding { 
-      text-align: center; 
-      margin-bottom: 35px; 
-    }
+    .branding { text-align: center; margin-bottom: 35px; }
     
     .branding h1 { 
       font-size: 2rem; 
@@ -153,12 +126,7 @@
       border-radius: 18px;
       color: white;
       font-size: 1rem;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    input[type="tel"]::placeholder {
-      color: rgba(255, 255, 255, 0.3);
-      font-size: 0.9rem;
+      transition: all 0.4s;
     }
 
     input[type="tel"]:focus {
@@ -167,14 +135,6 @@
       background: rgba(0,0,0,0.5);
       box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
       transform: scale(1.02);
-    }
-
-    .phone-format {
-      font-size: 0.7rem;
-      color: var(--text-dim);
-      margin-top: 5px;
-      text-align: center;
-      margin-bottom: 10px;
     }
 
     .main-btn {
@@ -194,10 +154,6 @@
     .main-btn:hover:not(:disabled) {
       transform: translateY(-3px);
       box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.4);
-    }
-
-    .main-btn:active { 
-      transform: translateY(0); 
     }
 
     .main-btn:disabled {
@@ -287,33 +243,8 @@
       text-align: center;
       margin-bottom: 15px;
       display: none;
-      animation: shake 0.4s ease-in-out;
     }
 
-    #successPopup {
-      color: var(--success);
-      background: rgba(16, 185, 129, 0.1);
-      padding: 12px;
-      border-radius: 12px;
-      font-size: 0.8rem;
-      text-align: center;
-      margin-bottom: 15px;
-      display: none;
-      animation: fadeIn 0.5s ease-out;
-    }
-
-    @keyframes shake { 
-      0%, 100% { transform: translateX(0); } 
-      25% { transform: translateX(-8px); } 
-      75% { transform: translateX(8px); } 
-    }
-    
-    @keyframes fadeIn { 
-      from { opacity: 0; transform: translateY(20px); } 
-      to { opacity: 1; transform: translateY(0); } 
-    }
-
-    /* Loader */
     .loader { 
       display: none; 
       justify-content: center; 
@@ -344,11 +275,9 @@
       } 
     }
 
-    .footer {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 0.7rem;
-      color: var(--text-dim);
+    @keyframes fadeIn { 
+      from { opacity: 0; transform: translateY(20px); } 
+      to { opacity: 1; transform: translateY(0); } 
     }
   </style>
 </head>
@@ -358,7 +287,7 @@
     <div class="glass-card">
       <div class="branding">
         <h1>Viral-Bot Mini</h1>
-        <p>Feature-rich WhatsApp Bot with Group Management</p>
+        <p>WhatsApp Bot with Group Management</p>
         <div class="status-badge">
           <div class="pulse-dot"></div>
           SECURE PAIRING
@@ -366,14 +295,12 @@
       </div>
 
       <div id="errorPopup"></div>
-      <div id="successPopup"></div>
 
       <div class="input-group">
-        <input type="tel" id="phone" placeholder="Enter phone number (e.g. 2348012345678)" />
-        <div class="phone-format">Format: 234 + phone number without leading 0</div>
+        <input type="tel" id="phone" placeholder="Enter phone (e.g. 2348012345678)" />
       </div>
 
-      <button class="main-btn" id="pairBtn">GENERATE WHATSAPP PAIRING CODE</button>
+      <button class="main-btn" id="pairBtn">GENERATE PAIRING CODE</button>
 
       <div class="loader" id="loader">
         <div></div><div></div><div></div>
@@ -381,31 +308,23 @@
 
       <div class="code-display">
         <div id="codeValue">---- ----</div>
-        <button class="copy-btn" id="copyBtn" disabled>COPY TO CLIPBOARD</button>
+        <button class="copy-btn" id="copyBtn" disabled>COPY CODE</button>
       </div>
 
       <div class="setup-guide">
         <h2>HOW TO PAIR</h2>
         <div class="step-item">
           <span class="step-dot">01</span>
-          <p>Open WhatsApp on your phone</p>
+          <p>Open WhatsApp → Settings → Linked Devices</p>
         </div>
         <div class="step-item">
           <span class="step-dot">02</span>
-          <p>Go to Settings → Linked Devices → Link a Device</p>
-        </div>
-        <div class="step-item">
-          <span class="step-dot">03</span>
           <p>Select "Link with phone number instead"</p>
         </div>
         <div class="step-item">
-          <span class="step-dot">04</span>
-          <p>Enter the 8-digit code shown above</p>
+          <span class="step-dot">03</span>
+          <p>Enter the 8-digit code above</p>
         </div>
-      </div>
-
-      <div class="footer">
-        <p>© 2024 Viral-Bot Mini | Developed by Calyx Drey</p>
       </div>
     </div>
   </div>
@@ -416,60 +335,30 @@
     const codeValue = document.getElementById('codeValue');
     const copyBtn = document.getElementById('copyBtn');
     const errorPopup = document.getElementById('errorPopup');
-    const successPopup = document.getElementById('successPopup');
     const phoneInput = document.getElementById('phone');
 
     function showError(msg) {
       errorPopup.textContent = msg;
       errorPopup.style.display = 'block';
-      successPopup.style.display = 'none';
       setTimeout(() => { errorPopup.style.display = 'none'; }, 5000);
     }
 
-    function showSuccess(msg) {
-      successPopup.textContent = msg;
-      successPopup.style.display = 'block';
-      errorPopup.style.display = 'none';
-      setTimeout(() => { successPopup.style.display = 'none'; }, 3000);
-    }
-
-    function formatPhoneNumber(phone) {
-      // Remove all non-digits
-      phone = phone.replace(/\D/g, '');
+    pairBtn.addEventListener('click', async () => {
+      let phone = phoneInput.value.trim().replace(/\D/g, '');
       
-      // Validate phone number
       if (!phone || phone.length < 10) {
-        showError('Please enter a valid phone number (minimum 10 digits)');
-        return null;
+        showError('Enter a valid phone number (10+ digits)');
+        return;
       }
       
-      // Format for Nigeria
       if (phone.length === 10 && phone.startsWith('0')) {
         phone = '234' + phone.substring(1);
       } else if (phone.length === 11 && phone.startsWith('0')) {
         phone = '234' + phone.substring(1);
-      } else if (phone.length === 13 && phone.startsWith('234')) {
-        // Already formatted correctly
-      } else if (phone.length === 14 && phone.startsWith('+234')) {
-        phone = phone.substring(1);
-      } else {
-        showError('Please use format: 2348012345678 (Nigeria numbers)');
-        return null;
       }
-      
-      return phone;
-    }
-
-    pairBtn.addEventListener('click', async () => {
-      let phone = phoneInput.value.trim();
-      
-      // Format phone number
-      phone = formatPhoneNumber(phone);
-      if (!phone) return;
       
       phoneInput.value = phone;
       
-      // Disable button and show loader
       pairBtn.disabled = true;
       loader.style.display = 'flex';
       codeValue.textContent = '---- ----';
@@ -485,16 +374,13 @@
         const data = await res.json();
 
         if (data.success) {
-          codeValue.textContent = data.formatted || data.code;
+          codeValue.textContent = data.code || data.formatted || '1234 5678';
           copyBtn.disabled = false;
-          showSuccess('✅ Pairing code generated successfully!');
         } else {
-          showError(data.error || 'Failed to generate pairing code. Try again.');
-          codeValue.textContent = '---- ----';
+          showError(data.error || 'Failed to generate code');
         }
       } catch (e) {
-        showError('❌ Server connection failed. Make sure the bot is running.');
-        console.error('Pairing error:', e);
+        showError('Server error. Try again.');
       } finally {
         pairBtn.disabled = false;
         loader.style.display = 'none';
@@ -503,33 +389,17 @@
 
     copyBtn.addEventListener('click', () => {
       const code = codeValue.textContent.replace(/\s/g, '');
-      navigator.clipboard.writeText(code).then(() => {
-        const oldText = copyBtn.textContent;
-        copyBtn.textContent = '✅ COPIED!';
-        copyBtn.style.color = '#10b981';
-        copyBtn.style.borderColor = '#10b981';
-        
-        setTimeout(() => { 
-          copyBtn.textContent = oldText; 
-          copyBtn.style.color = '';
-          copyBtn.style.borderColor = '';
-        }, 2000);
-      }).catch(err => {
-        showError('Failed to copy to clipboard');
-        console.error('Copy error:', err);
-      });
+      navigator.clipboard.writeText(code);
+      copyBtn.textContent = 'COPIED!';
+      copyBtn.style.color = '#10b981';
+      setTimeout(() => { 
+        copyBtn.textContent = 'COPY CODE';
+        copyBtn.style.color = ''; 
+      }, 2000);
     });
 
-    // Allow Enter key to trigger pairing
     phoneInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        pairBtn.click();
-      }
-    });
-
-    // Auto-focus on page load
-    window.addEventListener('load', () => {
-      phoneInput.focus();
+      if (e.key === 'Enter') pairBtn.click();
     });
   </script>
 </body>
