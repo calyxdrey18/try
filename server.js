@@ -1,107 +1,69 @@
-import fs from "fs";
-import express from "express";
-import P from "pino";
-import {
-  default as makeWASocket,
+const express = require("express")
+const fs = require("fs")
+const path = require("path")
+const {
+  default: makeWASocket,
   useMultiFileAuthState,
-  DisconnectReason
-} from "@whiskeysockets/baileys";
-import { commands } from "./commands.js";
+  fetchLatestBaileysVersion
+} = require("@whiskeysockets/baileys")
+const Pino = require("pino")
 
-const app = express();
-app.use(express.json());
+const app = express()
+app.use(express.json())
 
-/* ===== ENSURE AUTH FOLDER EXISTS ===== */
-if (!fs.existsSync("./auth")) {
-  fs.mkdirSync("./auth");
-}
+let sock
+let pairCode = ""
 
-let sock;
-let pairing = false;
+/* ================= WHATSAPP ================= */
 
-/* ===== START WHATSAPP BOT ===== */
-async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState("./auth");
+async function startBot(phone) {
+  const { state, saveCreds } = await useMultiFileAuthState("auth")
+  const { version } = await fetchLatestBaileysVersion()
 
   sock = makeWASocket({
-    auth: state,
-    logger: P({ level: "silent" }),
-    printQRInTerminal: false
-  });
+    version,
+    logger: Pino({ level: "silent" }),
+    auth: state
+  })
 
-  sock.ev.on("creds.update", saveCreds);
+  sock.ev.on("creds.update", saveCreds)
 
-  sock.ev.on("connection.update", (update) => {
-    const { connection, lastDisconnect } = update;
+  if (!state.creds.registered) {
+    pairCode = await sock.requestPairingCode(phone)
+    console.log("PAIR CODE:", pairCode)
+  }
 
+  sock.ev.on("connection.update", ({ connection }) => {
     if (connection === "open") {
-      console.log("✅ WhatsApp connected");
-      pairing = false;
+      console.log("✅ WhatsApp connected")
     }
+  })
 
-    if (connection === "close") {
-      const reason = lastDisconnect?.error?.output?.statusCode;
-      if (reason !== DisconnectReason.loggedOut) {
-        console.log("🔄 Reconnecting...");
-        startBot();
-      }
-    }
-  });
-
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const msg = messages[0];
-    if (!msg?.message || msg.key.fromMe) return;
-
-    const text =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      "";
-
-    const cmd = text.toLowerCase().trim();
-
-    if (cmd.startsWith(".")) {
-      const name = cmd.slice(1);
-      if (commands[name]) {
-        await sock.sendMessage(msg.key.remoteJid, {
-          text: commands[name]
-        });
-      }
-    }
-  });
+  /* ---- Your group management bot logic here ---- */
 }
 
-startBot();
+/* ================= API ================= */
 
-/* ===== PAIR CODE API ===== */
 app.post("/pair", async (req, res) => {
-  if (!sock) {
-    return res.json({ error: "Bot not ready yet" });
-  }
+  const { phone } = req.body
+  if (!phone) return res.json({ error: "Phone number required" })
 
-  const { number } = req.body;
-  if (!number) {
-    return res.json({ error: "Phone number required" });
-  }
+  await startBot(phone)
 
-  if (pairing) {
-    return res.json({ error: "Pairing already in progress" });
-  }
+  setTimeout(() => {
+    res.json({ code: pairCode })
+  }, 1500)
+})
 
-  try {
-    pairing = true;
-    const code = await sock.requestPairingCode(number);
-    res.json({ pairCode: code });
-  } catch (e) {
-    pairing = false;
-    res.json({ error: "Failed to generate pair code" });
-  }
-});
+/* ================= FRONTEND ================= */
 
-/* ===== FRONTEND ===== */
-app.use(express.static("."));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"))
+})
 
-/* ===== START SERVER ===== */
-const PORT = process.env.PORT || 3000;
+/* ================= SERVER ================= */
+
+const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
-  console.log("🌐 Server running on port", PORT);
-});
+  console.log(`🌐 Running on port ${PORT}`)
+})
