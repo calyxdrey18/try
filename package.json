@@ -1,18 +1,16 @@
 {
-  "name": "viral-bot-mini",
-  "version": "2.0.0",
-  "description": "Viral-Bot Mini WhatsApp Bot",
+  "name": "whatsapp-pair-bot",
+  "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "render-start": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.5.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "express": "^4.21.2",
-    "pino": "^8.15.6"
+    "pino": "^9.6.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": "20.x || 22.x"
   }
 }

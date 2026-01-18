@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Viral-Bot Mini | WhatsApp Bot</title>
+  <title>Viral-Bot Mini | Obsidian Edition</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root {
@@ -29,9 +29,9 @@
       justify-content: center;
       color: var(--text-main);
       overflow-x: hidden;
-      padding: 20px;
     }
 
+    /* Animated background elements */
     .glow-circle {
       position: absolute;
       width: 300px;
@@ -52,6 +52,7 @@
     .container {
       width: 100%;
       max-width: 440px;
+      padding: 20px;
       animation: fadeIn 1s ease-out;
     }
 
@@ -67,8 +68,18 @@
       overflow: hidden;
     }
 
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+      transition: 0.5s;
+    }
+
+    .glass-card:hover::before { left: 100%; transition: 0.8s; }
+
     .branding { text-align: center; margin-bottom: 35px; }
-    
     .branding h1 { 
       font-size: 2rem; 
       font-weight: 900; 
@@ -76,13 +87,6 @@
       background: linear-gradient(to right, #10b981, #34d399);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 10px;
-    }
-
-    .branding p {
-      color: var(--text-dim);
-      font-size: 0.9rem;
-      margin-bottom: 15px;
     }
 
     .status-badge {
@@ -95,28 +99,21 @@
       background: var(--accent-dim);
       padding: 6px 14px;
       border-radius: 100px;
-      margin-top: 5px;
+      margin-top: 10px;
       letter-spacing: 1px;
     }
 
     .pulse-dot {
-      width: 5px; 
-      height: 5px;
+      width: 5px; height: 5px;
       background: var(--accent);
       border-radius: 50%;
       box-shadow: 0 0 8px var(--accent);
       animation: pulse 2s infinite;
     }
 
-    @keyframes pulse { 
-      0%, 100% { opacity: 1; } 
-      50% { opacity: 0.3; } 
-    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-    .input-group { 
-      margin-bottom: 20px; 
-      position: relative; 
-    }
+    .input-group { margin-bottom: 20px; position: relative; }
     
     input[type="tel"] {
       width: 100%;
@@ -126,7 +123,7 @@
       border-radius: 18px;
       color: white;
       font-size: 1rem;
-      transition: all 0.4s;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
     input[type="tel"]:focus {
@@ -148,7 +145,6 @@
       cursor: pointer;
       font-size: 0.95rem;
       transition: all 0.3s;
-      margin-top: 10px;
     }
 
     .main-btn:hover:not(:disabled) {
@@ -156,10 +152,7 @@
       box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.4);
     }
 
-    .main-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    .main-btn:active { transform: translateY(0); }
 
     .code-display {
       margin-top: 30px;
@@ -178,10 +171,6 @@
       letter-spacing: 5px;
       margin-bottom: 15px;
       text-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-      min-height: 60px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
     .copy-btn {
@@ -195,29 +184,10 @@
       transition: 0.3s;
     }
 
-    .copy-btn:hover:not(:disabled) { 
-      border-color: var(--accent); 
-      color: var(--accent); 
-    }
+    .copy-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 
-    .copy-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .setup-guide { 
-      margin-top: 35px; 
-      border-top: 1px solid var(--border); 
-      padding-top: 25px; 
-    }
-    
-    .setup-guide h2 { 
-      font-size: 0.8rem; 
-      color: var(--text-dim); 
-      text-transform: uppercase; 
-      letter-spacing: 2px; 
-      margin-bottom: 15px; 
-    }
+    .setup-guide { margin-top: 35px; border-top: 1px solid var(--border); padding-top: 25px; }
+    .setup-guide h2 { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px; }
     
     .step-item {
       display: flex;
@@ -228,11 +198,7 @@
       line-height: 1.5;
     }
 
-    .step-dot { 
-      color: var(--accent); 
-      font-weight: bold; 
-      min-width: 25px;
-    }
+    .step-dot { color: var(--accent); font-weight: bold; }
 
     #errorPopup {
       color: var(--error);
@@ -243,42 +209,18 @@
       text-align: center;
       margin-bottom: 15px;
       display: none;
+      animation: shake 0.4s ease-in-out;
     }
 
-    .loader { 
-      display: none; 
-      justify-content: center; 
-      gap: 8px; 
-      margin: 20px 0; 
-    }
-    
-    .loader div { 
-      width: 8px; 
-      height: 8px; 
-      background: var(--accent); 
-      border-radius: 50%; 
-      animation: jump 0.6s infinite alternate; 
-    }
-    
-    .loader div:nth-child(2) { 
-      animation-delay: 0.2s; 
-    }
-    
-    .loader div:nth-child(3) { 
-      animation-delay: 0.4s; 
-    }
-    
-    @keyframes jump { 
-      to { 
-        transform: translateY(-10px); 
-        opacity: 0.4; 
-      } 
-    }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-    @keyframes fadeIn { 
-      from { opacity: 0; transform: translateY(20px); } 
-      to { opacity: 1; transform: translateY(0); } 
-    }
+    /* Loader */
+    .loader { display: none; justify-content: center; gap: 8px; margin: 20px 0; }
+    .loader div { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: jump 0.6s infinite alternate; }
+    .loader div:nth-child(2) { animation-delay: 0.2s; }
+    .loader div:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes jump { to { transform: translateY(-10px); opacity: 0.4; } }
   </style>
 </head>
 <body>
@@ -287,20 +229,19 @@
     <div class="glass-card">
       <div class="branding">
         <h1>Viral-Bot Mini</h1>
-        <p>WhatsApp Bot with Group Management</p>
         <div class="status-badge">
           <div class="pulse-dot"></div>
-          SECURE PAIRING
+          CORE SECURED
         </div>
       </div>
 
       <div id="errorPopup"></div>
 
       <div class="input-group">
-        <input type="tel" id="phone" placeholder="Enter phone (e.g. 2348012345678)" />
+        <input type="tel" id="phone" placeholder="Enter Phone (e.g. 23481...)" />
       </div>
 
-      <button class="main-btn" id="pairBtn">GENERATE PAIRING CODE</button>
+      <button class="main-btn" id="pairBtn">GENERATE ACCESS CODE</button>
 
       <div class="loader" id="loader">
         <div></div><div></div><div></div>
@@ -308,23 +249,14 @@
 
       <div class="code-display">
         <div id="codeValue">---- ----</div>
-        <button class="copy-btn" id="copyBtn" disabled>COPY CODE</button>
+        <button class="copy-btn" id="copyBtn" disabled>COPY TO CLIPBOARD</button>
       </div>
 
       <div class="setup-guide">
-        <h2>HOW TO PAIR</h2>
-        <div class="step-item">
-          <span class="step-dot">01</span>
-          <p>Open WhatsApp → Settings → Linked Devices</p>
-        </div>
-        <div class="step-item">
-          <span class="step-dot">02</span>
-          <p>Select "Link with phone number instead"</p>
-        </div>
-        <div class="step-item">
-          <span class="step-dot">03</span>
-          <p>Enter the 8-digit code above</p>
-        </div>
+        <h2>LINKING STEPS</h2>
+        <div class="step-item"><span class="step-dot">01</span><p>Go to WhatsApp Settings > Linked Devices</p></div>
+        <div class="step-item"><span class="step-dot">02</span><p>Select 'Link with phone number instead'</p></div>
+        <div class="step-item"><span class="step-dot">03</span><p>Paste the 8-digit code above</p></div>
       </div>
     </div>
   </div>
@@ -344,25 +276,12 @@
     }
 
     pairBtn.addEventListener('click', async () => {
-      let phone = phoneInput.value.trim().replace(/\D/g, '');
-      
-      if (!phone || phone.length < 10) {
-        showError('Enter a valid phone number (10+ digits)');
-        return;
-      }
-      
-      if (phone.length === 10 && phone.startsWith('0')) {
-        phone = '234' + phone.substring(1);
-      } else if (phone.length === 11 && phone.startsWith('0')) {
-        phone = '234' + phone.substring(1);
-      }
-      
-      phoneInput.value = phone;
-      
+      const phone = phoneInput.value.trim();
+      if (!phone) return showError('Phone number is required');
+
       pairBtn.disabled = true;
       loader.style.display = 'flex';
       codeValue.textContent = '---- ----';
-      copyBtn.disabled = true;
 
       try {
         const res = await fetch('/pair', {
@@ -370,17 +289,16 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone })
         });
-        
         const data = await res.json();
 
         if (data.success) {
-          codeValue.textContent = data.code || data.formatted || '1234 5678';
+          codeValue.textContent = data.code;
           copyBtn.disabled = false;
         } else {
-          showError(data.error || 'Failed to generate code');
+          showError(data.error || 'Request failed');
         }
       } catch (e) {
-        showError('Server error. Try again.');
+        showError('System offline. Check connection.');
       } finally {
         pairBtn.disabled = false;
         loader.style.display = 'none';
@@ -388,18 +306,14 @@
     });
 
     copyBtn.addEventListener('click', () => {
-      const code = codeValue.textContent.replace(/\s/g, '');
-      navigator.clipboard.writeText(code);
+      navigator.clipboard.writeText(codeValue.textContent);
+      const oldText = copyBtn.textContent;
       copyBtn.textContent = 'COPIED!';
       copyBtn.style.color = '#10b981';
       setTimeout(() => { 
-        copyBtn.textContent = 'COPY CODE';
-        copyBtn.style.color = ''; 
+        copyBtn.textContent = oldText; 
+        copyBtn.style.color = '';
       }, 2000);
-    });
-
-    phoneInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') pairBtn.click();
     });
   </script>
 </body>
