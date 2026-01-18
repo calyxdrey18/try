@@ -1,17 +1,14 @@
 {
-  "name": "baileys-pair-web-bot",
-  "version": "1.0.1",
-  "type": "module",
+  "name": "whatsapp-pair-bot",
+  "version": "1.0.0",
   "main": "server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js"
   },
-  "engines": {
-    "node": ">=18"
-  },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.0",
     "express": "^4.19.2",
-    "pino": "^8.17.0"
+    "@whiskeysockets/baileys": "^6.7.0",
+    "pino": "^8.19.0"
   }
 }
