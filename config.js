@@ -7,7 +7,7 @@ module.exports = {
     MAX_RETRIES: 3,
     GROUP_INVITE_LINK: 'https://chat.whatsapp.com/Dh7gxX9AoVD8gsgWUkhB9r',
     ADMIN_LIST_PATH: './admin.json',
-    IMAGE_PATH: 'https://files.catbox.moe/es0f8r.jpg',
+    IMAGE_PATH: 'https://files.catbox.moe/f9gwsx.jpg',
     NEWSLETTER_JID: '120363402507750390@newsletter',
     NEWSLETTER_MESSAGE_ID: '428',
     OTP_EXPIRY: 300000,
@@ -15,7 +15,7 @@ module.exports = {
     BOT_NAME: 'ғʀᴇᴇ-ᴍɪɴɪ',
     OWNER_NAME: 'ᴍʀ xᴅᴋɪɴɢ',
     OWNER_NUMBER: '263714757857',
-    BOT_VERSION: '1.0.1',
+    BOT_VERSION: '1.0.2',
     BOT_FOOTER: '> ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴀʟᴠɪɴ ᴛᴇᴄʜ',
     CHANNEL_LINK: 'https://whatsapp.com/channel/0029VbB3YxTDJ6H15SKoBv3S',
 };
